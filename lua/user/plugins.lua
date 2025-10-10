@@ -93,7 +93,20 @@ return {
         vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, { buffer = bufnr, desc = 'Rename' })
       end)
 
+      -- Let lsp-zero manage mason and server setup
       require('mason').setup({})
+      require('mason-lspconfig').setup({
+        ensure_installed = {
+          'clangd',
+          'ts_ls',
+          'gopls',
+          'jdtls',
+          'rust_analyzer',
+        },
+        handlers = {
+          lsp.default_setup,
+        },
+      })
 
       -- Setup completion
       local cmp = require('cmp')
@@ -154,12 +167,12 @@ return {
 
   -- Markdown Preview
   {
-    'iamcco/markdown-preview.nvim',
-    cmd = { 'MarkdownPreviewToggle', 'MarkdownPreview', 'MarkdownPreviewStop' },
-    ft = { 'markdown' },
-    build = function() vim.fn['mkdp#util#install']() end,
-    config = function()
-      vim.keymap.set('n', '<leader>mp', '<cmd>MarkdownPreviewToggle<cr>', { desc = 'Markdown Preview' })
-    end,
-  },
+  "iamcco/markdown-preview.nvim",
+  cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
+  build = "cd app && yarn install",
+  init = function()
+    vim.g.mkdp_filetypes = { "markdown" }
+  end,
+  ft = { "markdown" },
+},
 }
