@@ -196,4 +196,17 @@ return {
     end,
     ft = { "markdown" },
   },
+  {
+  'ray-x/lsp_signature.nvim',
+  event = 'InsertEnter', -- 在进入插入模式时加载
+  config = function()
+    require('lsp_signature').setup({
+      bind = true, -- 在输入时自动显示签名帮助
+      handler_opts = {
+        border = 'rounded', -- 浮动窗口边框
+      },
+      -- 其他配置项...
+    })
+  end
+},
 }

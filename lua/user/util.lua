@@ -48,4 +48,15 @@ function M.toggle_header_source()
   end
 end
 
+-- Autoformat on save, unless filename contains "wasm"
+vim.api.nvim_create_autocmd("BufWritePre", {
+  group = vim.api.nvim_create_augroup("AutoFormat", { clear = true }),
+  callback = function()
+    local filename = vim.fn.expand("%:t")
+    if not string.find(filename, "wasm", 1, true) then -- 1 for start position, true for plain search
+      vim.lsp.buf.format({ async = true })
+    end
+  end,
+})
+
 return M
