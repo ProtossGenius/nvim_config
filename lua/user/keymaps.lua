@@ -12,7 +12,7 @@ keymap('i', 'jj', '<ESC>', opts)
 keymap({ 'i', 'n', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
 
 -- File Explorer
-keymap('n', '-', '<cmd>NvimTreeToggle<cr>', { desc = 'Toggle file explorer' })
+keymap('n', '-', '<cmd>Dirvish<cr>', { desc = 'Open Dirvish' })
 
 -- Window Navigation
 keymap('n', '<leader><Right>', '<C-w>l', { desc = 'Move to right window' })

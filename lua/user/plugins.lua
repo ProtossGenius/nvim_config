@@ -148,12 +148,14 @@ return {
     config = true,
   },
 
-  -- File Explorer
+
+
+  -- File Explorer (Dirvish)
   {
-    'nvim-tree/nvim-tree.lua',
-    dependencies = { 'nvim-tree/nvim-web-devicons' },
+    'justinmk/vim-dirvish',
     config = function()
-      require('nvim-tree').setup {}
+      vim.cmd('let g:dirvish_hide_gitignore = 1')
+      vim.cmd('let g:dirvish_hide_netrw = 1')
     end,
   },
 
