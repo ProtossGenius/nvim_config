@@ -36,8 +36,8 @@ return {
     config = function()
       local builtin = require('telescope.builtin')
       vim.keymap.set('n', '<c-p>', builtin.find_files, { desc = 'Find files' })
-      vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Live Grep' })
-      vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Find buffers' })
+      vim.keymap.set('n', '<A-f>', builtin.live_grep, { desc = 'Live Grep' })
+      vim.keymap.set('n', '<A-n>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
       vim.keymap.set('n', '<leader>ff', builtin.git_files, { desc = 'Find git files' })
     end,
@@ -81,6 +81,7 @@ return {
       { 'rafamadriz/friendly-snippets' },
     },
     config = function()
+      local luasnip = require('luasnip')
       local lsp = require('lsp-zero').preset({})
 
       lsp.on_attach(function(client, bufnr)
@@ -128,6 +129,24 @@ return {
           ['<C-n>'] = cmp.mapping.select_next_item(cmp_select),
           ['<C-y>'] = cmp.mapping.confirm({ select = true }),
           ['<C-Space>'] = cmp.mapping.complete(),
+          ['<Tab>'] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.confirm({ select = true })
+            elseif luasnip.expand_or_locally_jumpable() then
+              luasnip.expand_or_jump()
+            else
+              fallback()
+            end
+          end, { 'i', 's' }),
+          ['<S-Tab>'] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_prev_item(cmp_select)
+            elseif luasnip.locally_jumpable(-1) then
+              luasnip.jump(-1)
+            else
+              fallback()
+            end
+          end, { 'i', 's' }),
         }),
       })
     end,
