@@ -42,12 +42,11 @@ keymap('n', 'k', 'gk')
 -- Compile and Run commands
 -- Helper function to run commands in a terminal
 local function term_exec(cmd)
-  vim.cmd('w')
-  vim.cmd('sp')
+  vim.cmd('wa')
   vim.cmd('terminal ' .. cmd)
-  vim.api.nvim_feedkeys('a', 'n', false) -- Enter insert mode in terminal
 end
-
+keymap('v', '<C-c>', 'y')
+keymap('n', '<S-f>', 'gF')
 keymap('n', '<F5>', function() term_exec('make qrun') end, { desc = 'Make qrun' })
 keymap('n', '<F6>', function() term_exec('make') end, { desc = 'Make' })
 keymap('n', '<F8>', function() term_exec('make tests') end, { desc = 'Make tests' })
