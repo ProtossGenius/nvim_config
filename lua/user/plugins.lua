@@ -90,7 +90,7 @@ return {
         vim.keymap.set('n', 'gr', vim.lsp.buf.references, { buffer = bufnr, desc = 'Go to References' })
         vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, { buffer = bufnr, desc = 'Go to Declaration' })
         vim.keymap.set('n', 'K', vim.lsp.buf.hover, { buffer = bufnr, desc = 'Hover' })
-        vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, { buffer = bufnr, desc = 'Code Action' })
+        vim.keymap.set('n', 'ff', vim.lsp.buf.code_action, { buffer = bufnr, desc = 'Code Action' })
         vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, { buffer = bufnr, desc = 'Rename' })
       end)
 
@@ -183,6 +183,7 @@ return {
   'junegunn/vim-easy-align',
   'fatih/vim-go',
   'tpope/vim-unimpaired',
+  'tpope/vim-surround',
   'mattn/emmet-vim',
   'ProtossGenius/leetcode.vim',
 
