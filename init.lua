@@ -39,3 +39,28 @@ require('lazy').setup('user.plugins', {
 
 -- Load utility functions
 require('user.util')
+
+-- Fcitx input method switching
+local fcitx_status = ""
+vim.api.nvim_create_autocmd("InsertLeave", {
+  callback = function()
+    local handle = io.popen("fcitx-remote")
+    local status = handle:read("*a")
+    handle:close()
+    if string.match(status, "^2") then -- Fcitx status 2 means active Chinese IME
+      fcitx_status = "zh"
+    else
+      fcitx_status = "en"
+    end
+    vim.fn.system("fcitx-remote -c") -- Switch to English
+  end,
+})
+
+vim.api.nvim_create_autocmd("InsertEnter", {
+  callback = function()
+    if fcitx_status == "zh" then
+      vim.fn.system("fcitx-remote -o") -- Switch back to Chinese
+    end
+    fcitx_status = "" -- Reset status
+  end,
+})
