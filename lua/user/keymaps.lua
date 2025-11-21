@@ -6,7 +6,8 @@ local keymap = vim.keymap.set
 
 -- Insert Mode
 keymap('i', 'jj', '<ESC>', opts)
-
+-- 在终端模式下，将 jj 映射为退出终端模式
+vim.api.nvim_set_keymap('t', 'jj', '<C-\\><C-n>', { noremap = true, silent = true, desc = 'Exit terminal mode to Normal' })
 -- Normal Mode
 -- Save buffer
 keymap({ 'i', 'n', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
@@ -33,7 +34,39 @@ keymap('n', '<leader>ds', '<cmd>Telescope lsp_document_symbols<cr>', { desc = 'D
 keymap('n', '<leader>ts', '<cmd>Telescope tags<cr>', { desc = 'Find tags' })
 
 -- Terminal
-keymap('n', '<M-t>', '<cmd>split | terminal<cr>', { desc = 'Open terminal' })
+-- Terminal toggle (Alt-t)
+keymap({'n', 'i', 'v', 't'}, '<M-t>', function()
+  local terminal_buffers = {}
+  local visible_terminal_winid = nil
+
+  -- Find all terminal buffers and check for visible terminals
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_option(bufnr, 'buftype') == 'terminal' then
+      table.insert(terminal_buffers, bufnr)
+      -- Check if this terminal buffer is currently visible in any window
+      for _, winid in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_buf(winid) == bufnr then
+          visible_terminal_winid = winid
+          break
+        end
+      end
+    end
+  end
+
+  if visible_terminal_winid then
+    -- If a terminal is visible, hide it (close its window)
+    vim.api.nvim_win_close(visible_terminal_winid, true)
+  elseif #terminal_buffers > 0 then
+    -- If terminals exist but none are visible, show the first one in a new split
+    vim.cmd('split')
+    vim.api.nvim_set_current_buf(terminal_buffers[1])
+    vim.cmd('startinsert!') -- Enter insert mode automatically
+  else
+    -- No terminals exist, create a new one
+    vim.cmd('split | terminal')
+    vim.cmd('startinsert!') -- Enter insert mode automatically
+  end
+end, { desc = 'Toggle terminal' })
 
 -- Better movement
 keymap('n', 'j', 'gj')
