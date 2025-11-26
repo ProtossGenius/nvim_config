@@ -27,6 +27,10 @@ keymap('n', 'sn', vim.diagnostic.goto_next, { desc = 'Next diagnostic' })
 keymap('n', 'sp', vim.diagnostic.goto_prev, { desc = 'Previous diagnostic' })
 keymap('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic error' })
 
+-- Git Changes
+keymap('n', ']c', '<cmd>Gitsigns next_hunk<cr>', { desc = 'Next Git change' })
+keymap('n', '[c', '<cmd>Gitsigns prev_hunk<cr>', { desc = 'Previous Git change' })
+
 -- Telescope (replaces LeaderF bindings)
 keymap('n', '<C-n>', '<cmd>Telescope oldfiles<cr>', { desc = 'Find recent files' })
 keymap('n', '<leader>p', '<cmd>Telescope projects<cr>', { desc = 'Find projects' }) -- Needs telescope-project.nvim
