@@ -59,4 +59,14 @@ vim.api.nvim_create_autocmd("BufWritePre", {
   end,
 })
 
+--- Expands the macro under the cursor using LSP code actions.
+function M.expand_macro()
+  vim.lsp.buf.code_action({
+    filter = function(action)
+      return action.title:lower():find("expand macro") ~= nil
+    end,
+    apply = true,
+  })
+end
+
 return M

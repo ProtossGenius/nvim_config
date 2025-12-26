@@ -92,6 +92,9 @@ keymap('n', '<F9>', function() term_exec('make debug') end, { desc = 'Make debug
 -- C/C++ Header/Source toggle
 keymap('n', '<M-h>', function() require('user.util').toggle_header_source() end, { desc = 'Toggle header/source' })
 
+-- Aerial (Code Outline)
+keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial outline' })
+
 -- Go plugin mappings (from vim-go)
 -- These will work because fatih/vim-go is installed
 keymap('n', '<leader>gs', '<Plug>(go-implements)')
@@ -100,3 +103,24 @@ keymap('n', '<leader>gr', '<Plug>(go-run)')
 keymap('n', '<leader>gb', '<Plug>(go-build)')
 keymap('n', '<leader>gt', '<Plug>(go-test)')
 keymap('n', '<leader>rn', '<Plug>(go-rename)')
+
+-- C/C++ Macro Expansion
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "c", "cpp" },
+  callback = function()
+    vim.keymap.set('i', ',mm', function()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      local line = vim.api.nvim_get_current_line()
+      if cursor[2] >= 3 then
+        local new_line = line:sub(1, cursor[2] - 3) .. line:sub(cursor[2] + 1)
+        vim.api.nvim_set_current_line(new_line)
+        vim.api.nvim_win_set_cursor(0, { cursor[1], cursor[2] - 3 })
+      end
+      require('user.util').expand_macro()
+    end, { buffer = true, desc = 'Expand macro' })
+
+    vim.keymap.set('n', ',mm', function()
+      require('user.util').expand_macro()
+    end, { buffer = true, desc = 'Expand macro' })
+  end,
+})

@@ -35,7 +35,9 @@ return {
     dependencies = { 'nvim-lua/plenary.nvim' },
     config = function()
       local builtin = require('telescope.builtin')
-      vim.keymap.set('n', '<c-p>', builtin.find_files, { desc = 'Find files' })
+      vim.keymap.set('n', '<c-p>', function()
+        builtin.find_files({ hidden = true })
+      end, { desc = 'Find files (including hidden)' })
       vim.keymap.set('n', '<A-f>', builtin.live_grep, { desc = 'Live Grep' })
       vim.keymap.set('n', '<A-n>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
@@ -83,6 +85,25 @@ return {
     config = function()
       local luasnip = require('luasnip')
       local lsp = require('lsp-zero').preset({})
+
+      -- 加载本地代码片段的辅助函数
+      local function load_local_snippets()
+        local cwd = vim.fn.getcwd()
+        local local_snippets = cwd .. "/.snippets"
+        if vim.fn.isdirectory(local_snippets) == 1 then
+          require("luasnip.loaders.from_lua").lazy_load({ paths = { local_snippets } })
+        end
+      end
+
+      -- 初始化时加载一次
+      load_local_snippets()
+
+      -- 当切换目录或进入新 buffer 时尝试再次加载
+      vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter" }, {
+        callback = function()
+          load_local_snippets()
+        end,
+      })
 
       lsp.on_attach(function(client, bufnr)
         lsp.default_keymaps({ buffer = bufnr })
@@ -167,7 +188,26 @@ return {
     config = true,
   },
 
-
+  -- Code outline
+  {
+    'stevearc/aerial.nvim',
+    opts = {},
+    -- Optional dependencies
+    dependencies = {
+       "nvim-treesitter/nvim-treesitter",
+       "nvim-tree/nvim-web-devicons"
+    },
+    config = function()
+      require('aerial').setup({
+        -- optionally use on_attach to set keymaps when aerial has attached to a buffer
+        on_attach = function(bufnr)
+          -- Jump forwards/backwards with '{' and '}'
+          vim.keymap.set('n', '{', '<cmd>AerialPrev<CR>', {buffer = bufnr})
+          vim.keymap.set('n', '}', '<cmd>AerialNext<CR>', {buffer = bufnr})
+        end
+      })
+    end
+  },
 
   -- File Explorer (Dirvish)
   {
