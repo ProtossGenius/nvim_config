@@ -39,7 +39,7 @@ return {
         builtin.find_files({ hidden = true })
       end, { desc = 'Find files (including hidden)' })
       vim.keymap.set('n', '<A-f>', builtin.live_grep, { desc = 'Live Grep' })
-      vim.keymap.set('n', '<A-n>', builtin.buffers, { desc = 'Find buffers' })
+      vim.keymap.set('n', '<A-r>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
       vim.keymap.set('n', '<leader>ff', builtin.git_files, { desc = 'Find git files' })
     end,
