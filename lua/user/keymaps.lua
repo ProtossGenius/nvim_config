@@ -23,8 +23,8 @@ keymap('n', '<leader><Down>', '<C-w>j', { desc = 'Move to lower window' })
 keymap('n', '<leader>sv', '<cmd>vsplit<cr>', { desc = 'Split window vertically' })
 
 -- Diagnostics (replaces ALE bindings)
-keymap('n', 'sn', vim.diagnostic.goto_next, { desc = 'Next diagnostic' })
-keymap('n', 'sp', vim.diagnostic.goto_prev, { desc = 'Previous diagnostic' })
+keymap({'n', 'i'}, '<M-n>', vim.diagnostic.goto_next, { desc = 'Next diagnostic' })
+keymap({'n', 'i'}, '<M-p>', vim.diagnostic.goto_prev, { desc = 'Previous diagnostic' })
 keymap('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic error' })
 
 -- Git Changes
