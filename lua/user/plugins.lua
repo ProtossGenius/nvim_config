@@ -221,7 +221,13 @@ return {
   -- Kept from your original config
   'voldikss/vim-translator',
   'junegunn/vim-easy-align',
-  'fatih/vim-go',
+--  {
+--    'fatih/vim-go',
+--    config = function()
+--      vim.g.go_fmt_autosave = 0
+--      vim.g.go_imports_autosave = 0
+--    end
+--  },
   'tpope/vim-unimpaired',
   'tpope/vim-surround',
   'mattn/emmet-vim',
