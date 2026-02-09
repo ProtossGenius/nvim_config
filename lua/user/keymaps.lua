@@ -64,7 +64,7 @@ keymap({'n', 'i', 'v', 't'}, '<M-t>', function()
     local win_opts = {
       relative = 'editor',
       width = vim.o.columns,
-      height = vim.o.lines,
+      height = vim.o.lines - 2,
       col = 0,
       row = 0,
       style = 'minimal',
