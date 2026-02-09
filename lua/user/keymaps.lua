@@ -119,6 +119,7 @@ vim.api.nvim_create_autocmd("FileType", {
       require('user.util').expand_macro()
     end, { buffer = true, desc = 'Expand macro' })
 
+    vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, { desc = "LSP 重命名" })
     vim.keymap.set('n', ',mm', function()
       require('user.util').expand_macro()
     end, { buffer = true, desc = 'Expand macro' })
