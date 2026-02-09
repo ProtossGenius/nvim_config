@@ -60,15 +60,28 @@ keymap({'n', 'i', 'v', 't'}, '<M-t>', function()
   if visible_terminal_winid then
     -- If a terminal is visible, hide it (close its window)
     vim.api.nvim_win_close(visible_terminal_winid, true)
-  elseif #terminal_buffers > 0 then
-    -- If terminals exist but none are visible, show the first one in a new split
-    vim.cmd('split')
-    vim.api.nvim_set_current_buf(terminal_buffers[1])
-    vim.cmd('startinsert!') -- Enter insert mode automatically
   else
-    -- No terminals exist, create a new one
-    vim.cmd('split | terminal')
-    vim.cmd('startinsert!') -- Enter insert mode automatically
+    local win_opts = {
+      relative = 'editor',
+      width = vim.o.columns,
+      height = vim.o.lines,
+      col = 0,
+      row = 0,
+      style = 'minimal',
+      border = 'none',
+      zindex = 50,
+    }
+    if #terminal_buffers > 0 then
+      -- If terminals exist but none are visible, show the first one in a fullscreen float
+      vim.api.nvim_open_win(terminal_buffers[1], true, win_opts)
+      vim.cmd('startinsert!') -- Enter insert mode automatically
+    else
+      -- No terminals exist, create a new one in a fullscreen float
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_open_win(buf, true, win_opts)
+      vim.cmd('terminal')
+      vim.cmd('startinsert!') -- Enter insert mode automatically
+    end
   end
 end, { desc = 'Toggle terminal' })
 
