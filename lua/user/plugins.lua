@@ -134,12 +134,14 @@ return {
       local cmp = require('cmp')
       local cmp_select = { behavior = cmp.SelectBehavior.Select }
       cmp.setup({
-        sources = {
+        sources = cmp.config.sources({
+          { name = 'copilot' },
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
+        }, {
           { name = 'buffer' },
           { name = 'path' },
-        },
+        }),
         snippet = {
           expand = function(args)
             require('luasnip').lsp_expand(args.body)
@@ -170,6 +172,44 @@ return {
           end, { 'i', 's' }),
         }),
       })
+    end,
+  },
+
+  -- GitHub Copilot (completion via nvim-cmp)
+  {
+    'zbirenbaum/copilot.lua',
+    cmd = 'Copilot',
+    event = 'InsertEnter',
+    config = function()
+      require('copilot').setup({
+        suggestion = { enabled = false },
+        panel = { enabled = false },
+      })
+    end,
+  },
+  {
+    'zbirenbaum/copilot-cmp',
+    dependencies = { 'zbirenbaum/copilot.lua' },
+    config = function()
+      require('copilot_cmp').setup()
+    end,
+  },
+
+  -- Copilot Chat (project-aware tasks)
+  {
+    'CopilotC-Nvim/CopilotChat.nvim',
+    dependencies = {
+      { 'zbirenbaum/copilot.lua' },
+      { 'nvim-lua/plenary.nvim' },
+    },
+    opts = {},
+    init = function()
+      -- Normal mode: open chat for current project/buffer
+      vim.keymap.set('n', '<leader>cc', '<cmd>CopilotChat<CR>', { desc = 'Copilot Chat' })
+      -- Visual mode: use built-in prompts on selected code
+      vim.keymap.set('v', '<leader>ce', '<cmd>CopilotChatExplain<CR>', { desc = 'Copilot Explain selection' })
+      vim.keymap.set('v', '<leader>cf', '<cmd>CopilotChatFix<CR>', { desc = 'Copilot Fix selection' })
+      vim.keymap.set('v', '<leader>cr', '<cmd>CopilotChatReview<CR>', { desc = 'Copilot Review selection' })
     end,
   },
 
