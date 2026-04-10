@@ -137,27 +137,29 @@ local function render_float(content_lines, title)
 end
 
 local function get_visual_selection()
-  local mode = vim.fn.visualmode()
+  local current_mode = vim.api.nvim_get_mode().mode
+  local mode = current_mode
+  if mode ~= 'v' and mode ~= 'V' and mode ~= '\022' then
+    mode = vim.fn.visualmode()
+  end
+
   if mode == '\022' then
     vim.notify('Blockwise visual mode is not supported for translation.', vim.log.levels.WARN)
     return nil
   end
 
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
-  local start_row, start_col = start_pos[2], start_pos[3]
-  local end_row, end_col = end_pos[2], end_pos[3]
+  local start_pos
+  local end_pos
 
-  if start_row > end_row or (start_row == end_row and start_col > end_col) then
-    start_row, end_row = end_row, start_row
-    start_col, end_col = end_col, start_col
+  if current_mode == 'v' or current_mode == 'V' or current_mode == '\022' then
+    start_pos = vim.fn.getpos('v')
+    end_pos = vim.fn.getcurpos()
+  else
+    start_pos = vim.fn.getpos("'<")
+    end_pos = vim.fn.getpos("'>")
   end
 
-  if mode == 'V' then
-    return table.concat(vim.api.nvim_buf_get_lines(0, start_row - 1, end_row, false), '\n')
-  end
-
-  local lines = vim.api.nvim_buf_get_text(0, start_row - 1, start_col - 1, end_row - 1, end_col, {})
+  local lines = vim.fn.getregion(start_pos, end_pos, { type = mode })
   return table.concat(lines, '\n')
 end
 
