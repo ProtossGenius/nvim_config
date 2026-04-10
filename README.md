@@ -35,3 +35,11 @@ These keybindings are active in insert mode.
 | `<C-n>` | Next Item | Selects the next item in the completion menu. |
 | `<C-p>` | Previous Item | Selects the previous item in the completion menu. |
 | `<C-y>` | Confirm | Confirms the selected completion. |
+
+## Translation
+
+These keybindings are active in visual mode.
+
+| Keybinding | Action | Description |
+| :--- | :--- | :--- |
+| `<leader>ot` | Translate Selection | Sends the selection to local Ollama with `translategemma:4b` and shows the result in a floating window. If the text contains Chinese, it translates to English; otherwise it translates to Simplified Chinese. |

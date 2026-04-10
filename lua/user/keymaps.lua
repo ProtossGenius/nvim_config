@@ -108,6 +108,11 @@ keymap('n', '<M-h>', function() require('user.util').toggle_header_source() end,
 -- Aerial (Code Outline)
 keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial outline' })
 
+-- Ollama translation
+keymap('x', '<leader>ot', function()
+  require('user.translate').translate_visual_selection()
+end, { desc = 'Translate selection with Ollama' })
+
 -- Go plugin mappings (from vim-go)
 -- These will work because fatih/vim-go is installed
 keymap('n', '<leader>gs', '<Plug>(go-implements)')
