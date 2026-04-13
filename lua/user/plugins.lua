@@ -86,7 +86,7 @@ return {
       local builtin = require('telescope.builtin')
 
       require('project_nvim').setup({
-        detection_methods = { 'lsp', 'pattern' },
+        detection_methods = { 'pattern' },
         patterns = {
           '.git',
           'mvnw',
