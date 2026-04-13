@@ -4,6 +4,10 @@
 local opts = { noremap = true, silent = true }
 local keymap = vim.keymap.set
 
+local function leader_map(mode, lhs, rhs, desc)
+  keymap(mode, lhs, rhs, vim.tbl_extend('force', opts, { desc = desc }))
+end
+
 -- Insert Mode
 keymap('i', 'jj', '<ESC>', opts)
 -- 在终端模式下，将 jj 映射为退出终端模式
@@ -11,6 +15,7 @@ vim.api.nvim_set_keymap('t', 'jj', '<C-\\><C-n>', { noremap = true, silent = tru
 -- Normal Mode
 -- Save buffer
 keymap({ 'i', 'n', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
+leader_map('n', '<leader>fs', '<cmd>w<cr>', 'Save file')
 
 -- File Explorer
 -- keymap('n', '-', '<cmd>Dirvish<cr>', { desc = 'Open Dirvish' })
@@ -21,25 +26,41 @@ keymap('n', '<leader><Left>', '<C-w>h', { desc = 'Move to left window' })
 keymap('n', '<leader><Up>', '<C-w>k', { desc = 'Move to upper window' })
 keymap('n', '<leader><Down>', '<C-w>j', { desc = 'Move to lower window' })
 keymap('n', '<leader>sv', '<cmd>vsplit<cr>', { desc = 'Split window vertically' })
+leader_map('n', '<leader>wh', '<C-w>h', 'Move to left window')
+leader_map('n', '<leader>wj', '<C-w>j', 'Move to lower window')
+leader_map('n', '<leader>wk', '<C-w>k', 'Move to upper window')
+leader_map('n', '<leader>wl', '<C-w>l', 'Move to right window')
+leader_map('n', '<leader>wv', '<cmd>vsplit<cr>', 'Split window vertically')
 
 -- Diagnostics (replaces ALE bindings)
 keymap({'n', 'i'}, '<M-n>', vim.diagnostic.goto_next, { desc = 'Next diagnostic' })
 keymap({'n', 'i'}, '<M-p>', vim.diagnostic.goto_prev, { desc = 'Previous diagnostic' })
 keymap('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic error' })
+leader_map('n', '<leader>xn', vim.diagnostic.goto_next, 'Next diagnostic')
+leader_map('n', '<leader>xp', vim.diagnostic.goto_prev, 'Previous diagnostic')
+leader_map('n', '<leader>xe', vim.diagnostic.open_float, 'Show diagnostic error')
 
 -- Git Changes
 keymap('n', ']c', '<cmd>Gitsigns next_hunk<cr>', { desc = 'Next Git change' })
 keymap('n', '[c', '<cmd>Gitsigns prev_hunk<cr>', { desc = 'Previous Git change' })
+leader_map('n', '<leader>gn', '<cmd>Gitsigns next_hunk<cr>', 'Next Git change')
+leader_map('n', '<leader>gp', '<cmd>Gitsigns prev_hunk<cr>', 'Previous Git change')
 
 -- Telescope (replaces LeaderF bindings)
 keymap('n', '<C-n>', '<cmd>Telescope oldfiles<cr>', { desc = 'Find recent files' })
-keymap('n', '<leader>p', '<cmd>Telescope projects<cr>', { desc = 'Find projects' }) -- Needs telescope-project.nvim
+keymap('n', '<leader>p', '<cmd>Telescope projects<cr>', { desc = 'Find projects' })
 keymap('n', '<leader>ds', '<cmd>Telescope lsp_document_symbols<cr>', { desc = 'Document symbols' })
 keymap('n', '<leader>ts', '<cmd>Telescope tags<cr>', { desc = 'Find tags' })
+leader_map('n', '<leader>fa', '<cmd>Telescope find_files hidden=true<cr>', 'Find files (including hidden)')
+leader_map('n', '<leader>fb', '<cmd>Telescope buffers<cr>', 'Find buffers')
+leader_map('n', '<leader>fg', '<cmd>Telescope live_grep<cr>', 'Live Grep')
+leader_map('n', '<leader>fr', '<cmd>Telescope oldfiles<cr>', 'Find recent files')
+leader_map('n', '<leader>ft', '<cmd>Telescope tags<cr>', 'Find tags')
+leader_map('n', '<leader>pp', '<cmd>Telescope projects<cr>', 'Find projects')
 
 -- Terminal
 -- Terminal toggle (Alt-t)
-keymap({'n', 'i', 'v', 't'}, '<M-t>', function()
+local function toggle_terminal()
   local terminal_buffers = {}
   local visible_terminal_winid = nil
 
@@ -83,7 +104,10 @@ keymap({'n', 'i', 'v', 't'}, '<M-t>', function()
       vim.cmd('startinsert!') -- Enter insert mode automatically
     end
   end
-end, { desc = 'Toggle terminal' })
+end
+
+keymap({'n', 'i', 'v', 't'}, '<M-t>', toggle_terminal, { desc = 'Toggle terminal' })
+leader_map('n', '<leader>tt', toggle_terminal, 'Toggle terminal')
 
 -- Better movement
 keymap('n', 'j', 'gj')
@@ -101,26 +125,31 @@ keymap('n', '<F5>', function() term_exec('make qrun') end, { desc = 'Make qrun' 
 keymap('n', '<F6>', function() term_exec('make') end, { desc = 'Make' })
 keymap('n', '<F8>', function() term_exec('make tests') end, { desc = 'Make tests' })
 keymap('n', '<F9>', function() term_exec('make debug') end, { desc = 'Make debug' })
+leader_map('n', '<leader>mr', function() term_exec('make qrun') end, 'Make qrun')
+leader_map('n', '<leader>mm', function() term_exec('make') end, 'Make')
+leader_map('n', '<leader>mt', function() term_exec('make tests') end, 'Make tests')
+leader_map('n', '<leader>md', function() term_exec('make debug') end, 'Make debug')
 
 -- C/C++ Header/Source toggle
 keymap('n', '<M-h>', function() require('user.util').toggle_header_source() end, { desc = 'Toggle header/source' })
+leader_map('n', '<leader>oh', function() require('user.util').toggle_header_source() end, 'Toggle header/source')
 
 -- Aerial (Code Outline)
 keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial outline' })
+leader_map('n', '<leader>oa', '<cmd>AerialToggle! left<cr>', 'Toggle Aerial outline')
 
 -- Ollama translation
 keymap('x', '<leader>ot', function()
   require('user.translate').translate_visual_selection()
 end, { desc = 'Translate selection with Ollama' })
 
--- Go plugin mappings (from vim-go)
--- These will work because fatih/vim-go is installed
-keymap('n', '<leader>gs', '<Plug>(go-implements)')
-keymap('n', '<leader>gi', '<Plug>(go-info)')
-keymap('n', '<leader>gr', '<Plug>(go-run)')
-keymap('n', '<leader>gb', '<Plug>(go-build)')
-keymap('n', '<leader>gt', '<Plug>(go-test)')
-keymap('n', '<leader>rn', '<Plug>(go-rename)')
+-- Go plugin mappings (kept for compatibility if vim-go is enabled again)
+keymap('n', '<leader>gs', '<Plug>(go-implements)', { desc = 'Go implements' })
+keymap('n', '<leader>gi', '<Plug>(go-info)', { desc = 'Go info' })
+keymap('n', '<leader>gr', '<Plug>(go-run)', { desc = 'Go run' })
+keymap('n', '<leader>gb', '<Plug>(go-build)', { desc = 'Go build' })
+keymap('n', '<leader>gt', '<Plug>(go-test)', { desc = 'Go test' })
+keymap('n', '<leader>rn', '<Plug>(go-rename)', { desc = 'Go rename' })
 
 -- C/C++ Macro Expansion
 vim.api.nvim_create_autocmd("FileType", {

@@ -1,45 +1,22 @@
-# Neovim Keymap Cheatsheet
+# Neovim 配置说明
 
-This document outlines the primary keybindings configured in your Neovim setup. Your leader key is `Space`.
+当前 `leader` 键是 `Space`。
 
-## Language Server Protocol (LSP)
+## 中文文档
 
-These features are available when a language server is attached to the buffer.
+- [Java / Lombok / LSP / Leader 键说明](docs/java-lsp-and-keymaps.zh-CN.md)
 
-| Keybinding | Action | Description |
-| :--- | :--- | :--- |
-| `gd` | Go to Definition | Jumps to the definition of the symbol under the cursor. |
-| `gr` | Go to References | Shows all references to the symbol under the cursor. |
-| `gD` | Go to Declaration | Jumps to the declaration of the symbol under the cursor. |
-| `K` | Hover | Displays hover information (e.g., type definitions, documentation) for the symbol under the cursor. |
-| `<leader>ca` | Code Action | Triggers a menu of available code actions (e.g., auto-imports, refactoring options). |
-| `<leader>rn` | Rename | Renames the symbol under the cursor and all its references. |
+## 快速入口
 
-## Fuzzy Finding (Telescope)
+| 按键 | 说明 |
+| :--- | :--- |
+| `gd` / `<C-]>` | 跳到定义；在 Java 中可进入 JDK / JAR 类源码或反编译内容 |
+| `SPC l ...` | LSP 操作组：定义、引用、重命名、诊断、格式化 |
+| `SPC j ...` | Java 操作组：organize imports、运行、测试、重构 |
+| `SPC f ...` | 查找操作组：文件、grep、buffer、recent、tags |
+| `SPC w ...` | 窗口操作组 |
+| `SPC x ...` | 诊断操作组 |
+| `SPC m ...` | make / build 操作组 |
+| `SPC ?` | 查看当前 buffer 可用快捷键 |
 
-| Keybinding | Action | Description |
-| :--- | :--- | :--- |
-| `<C-p>` | Find Files | Opens a fuzzy finder to search for files in the current directory. |
-| `<leader>fg` | Live Grep | Performs a live grep search for a string within all files. |
-| `<leader>fb` | Find Buffers | Fuzzy finds through all open buffers. |
-| `<leader>fh` | Help Tags | Searches through Neovim's help tags. |
-| `<leader>ff` | Find Git Files | Fuzzy finds through all files tracked by Git. |
-
-## Autocompletion
-
-These keybindings are active in insert mode.
-
-| Keybinding | Action | Description |
-| :--- | :--- | :--- |
-| `<C-Space>` | Complete | Triggers the autocompletion menu. |
-| `<C-n>` | Next Item | Selects the next item in the completion menu. |
-| `<C-p>` | Previous Item | Selects the previous item in the completion menu. |
-| `<C-y>` | Confirm | Confirms the selected completion. |
-
-## Translation
-
-These keybindings are active in visual mode.
-
-| Keybinding | Action | Description |
-| :--- | :--- | :--- |
-| `<leader>ot` | Translate Selection | Sends the selection to local Ollama with `translategemma:4b` and shows the result in a floating window. If the text contains Chinese, it translates to English; otherwise it translates to Simplified Chinese. |
+按下 `Space` 或其它前缀键的一半时，会通过 `which-key.nvim` 在底部显示可继续输入的操作。

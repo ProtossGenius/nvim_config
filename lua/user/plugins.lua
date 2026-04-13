@@ -28,13 +28,81 @@ return {
     end,
   },
 
+  {
+    'folke/which-key.nvim',
+    event = 'VeryLazy',
+    config = function()
+      local wk = require('which-key')
+
+      wk.setup({
+        preset = 'classic',
+        delay = 200,
+        win = {
+          border = 'rounded',
+          no_overlap = false,
+          row = math.huge,
+          col = 0,
+          padding = { 1, 2 },
+        },
+        layout = {
+          width = { min = 24 },
+          spacing = 3,
+        },
+        spec = {
+          { '<leader>b', group = 'Buffer' },
+          { '<leader>c', group = 'Copilot/Code' },
+          { '<leader>f', group = 'Find/File' },
+          { '<leader>g', group = 'Git' },
+          { '<leader>j', group = 'Java' },
+          { '<leader>l', group = 'LSP' },
+          { '<leader>m', group = 'Make/Build' },
+          { '<leader>o', group = 'Open/Outline' },
+          { '<leader>p', group = 'Project' },
+          { '<leader>t', group = 'Toggle' },
+          { '<leader>w', group = 'Window' },
+          { '<leader>x', group = 'Diagnostics' },
+          {
+            '<leader>?',
+            function()
+              wk.show({ global = false })
+            end,
+            desc = 'Buffer local keymaps',
+          },
+        },
+      })
+    end,
+  },
+
   -- Fuzzy Finder
   {
     'nvim-telescope/telescope.nvim',
     tag = '0.1.5',
-    dependencies = { 'nvim-lua/plenary.nvim' },
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      'ahmedkhalf/project.nvim',
+    },
     config = function()
+      local telescope = require('telescope')
       local builtin = require('telescope.builtin')
+
+      require('project_nvim').setup({
+        detection_methods = { 'lsp', 'pattern' },
+        patterns = {
+          '.git',
+          'mvnw',
+          'gradlew',
+          'pom.xml',
+          'build.gradle',
+          'build.gradle.kts',
+          'settings.gradle',
+          'settings.gradle.kts',
+          'Makefile',
+          'package.json',
+        },
+        silent_chdir = true,
+      })
+      telescope.load_extension('projects')
+
       vim.keymap.set('n', '<c-p>', function()
         builtin.find_files({ hidden = true })
       end, { desc = 'Find files (including hidden)' })
@@ -69,6 +137,10 @@ return {
       { 'neovim/nvim-lspconfig' },
       { 'williamboman/mason.nvim' },
       { 'williamboman/mason-lspconfig.nvim' },
+      { 'nvim-java/nvim-java' },
+      { 'MunifTanjim/nui.nvim' },
+      { 'mfussenegger/nvim-dap' },
+      { 'JavaHello/spring-boot.nvim', commit = '218c0c26c14d99feca778e4d13f5ec3e8b1b60f0' },
 
       -- Autocompletion
       { 'hrsh7th/nvim-cmp' },
@@ -85,6 +157,14 @@ return {
     config = function()
       local luasnip = require('luasnip')
       local lsp = require('lsp-zero').preset({})
+      local user_lsp = require('user.lsp')
+      local capabilities = require('cmp_nvim_lsp').default_capabilities()
+
+      require('java').setup({
+        lombok = {
+          enable = true,
+        },
+      })
 
       -- 加载本地代码片段的辅助函数
       local function load_local_snippets()
@@ -105,15 +185,12 @@ return {
         end,
       })
 
-      lsp.on_attach(function(client, bufnr)
+      local function on_attach(client, bufnr)
         lsp.default_keymaps({ buffer = bufnr })
-        vim.keymap.set('n', 'gd', vim.lsp.buf.definition, { buffer = bufnr, desc = 'Go to Definition' })
-        vim.keymap.set('n', 'gr', vim.lsp.buf.references, { buffer = bufnr, desc = 'Go to References' })
-        vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, { buffer = bufnr, desc = 'Go to Declaration' })
-        vim.keymap.set('n', 'K', vim.lsp.buf.hover, { buffer = bufnr, desc = 'Hover' })
-        vim.keymap.set('n', 'ff', vim.lsp.buf.code_action, { buffer = bufnr, desc = 'Code Action' })
-        vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, { buffer = bufnr, desc = 'Rename' })
-      end)
+        user_lsp.on_attach(client, bufnr)
+      end
+
+      lsp.on_attach(on_attach)
 
       -- Let lsp-zero manage mason and server setup
       require('mason').setup({})
@@ -122,13 +199,20 @@ return {
           'clangd',
           'ts_ls',
           'gopls',
-          'jdtls',
           'rust_analyzer',
         },
         handlers = {
           lsp.default_setup,
+          jdtls = function() end,
         },
       })
+
+      vim.lsp.config('jdtls', {
+        capabilities = capabilities,
+        on_attach = on_attach,
+        settings = user_lsp.jdtls_settings(),
+      })
+      vim.lsp.enable('jdtls')
 
       -- Setup completion
       local cmp = require('cmp')
