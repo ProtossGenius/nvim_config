@@ -58,7 +58,6 @@ return {
             { '<leader>j', group = 'Java' },
             { '<leader>l', group = 'LSP' },
             { '<leader>m', group = 'Make/Build' },
-            { '<leader>o', group = 'Open/Outline' },
             { '<leader>p', group = 'Project' },
             { '<leader>t', group = 'Toggle' },
             { '<leader>w', group = 'Window' },
@@ -66,6 +65,10 @@ return {
           },
           {
             mode = 'n',
+            { '<leader>d', group = 'Document' },
+            { '<leader>o', group = 'Open/Outline' },
+            { '<leader>r', group = 'Rename' },
+            { '<leader>s', group = 'Split' },
             {
               '<leader>?',
               function()
@@ -76,6 +79,7 @@ return {
           },
           {
             mode = 'v',
+            { '<leader>o', group = 'Ollama' },
             { '<leader>ot', desc = 'Translate selection with Ollama' },
             { '<leader>ce', desc = 'Copilot Explain selection' },
             { '<leader>cf', desc = 'Copilot Fix selection' },
