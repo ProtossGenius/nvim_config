@@ -62,6 +62,8 @@
 - `SPC x`：诊断；
 - `SPC m`：make / build。
 
+视觉模式下的 leader 提示也补齐了显式注册，像选中文本后按 `SPC o t`，which-key 会直接显示翻译动作说明，而不是泛化成 `1+ mappings`。
+
 ## 4. 常用 leader 映射
 
 > 说明：下面是“新增或重点整理后的” Space leader 入口；原有快捷键仍然保留。
@@ -143,3 +145,7 @@
 - 它需要的运行时 JDK
 
 这是正常现象。准备完成后，后续进入 Java 项目的体验会稳定很多。
+
+另外，配置里也把 `jdtls` 加进了 Mason 的默认安装列表；在一台全新的机器上，只要装好这套 Neovim 配置，首次进入 Java 项目时也会自动补齐并启用对应语言服务，而不需要手动先装系统级 `jdtls`。
+
+这次没有额外叠加 `nvim-jdtls`。原因是它更偏向手工配置：README 明确写了更适合“偏好 configuration as code、且不把易用性放在首位”的用户；而 `nvim-java` 这边已经覆盖了 JDTLS、Lombok、测试、调试、运行器和 Spring 支持，并且它自己的配置项里还带有 `nvim_jdtls_conflict` 检查。对这份仓库来说，继续保持单一的 `nvim-java + jdtls` 方案更稳，也更省维护成本。

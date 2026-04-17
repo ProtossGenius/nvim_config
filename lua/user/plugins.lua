@@ -49,24 +49,37 @@ return {
           spacing = 3,
         },
         spec = {
-          { '<leader>b', group = 'Buffer' },
-          { '<leader>c', group = 'Copilot/Code' },
-          { '<leader>f', group = 'Find/File' },
-          { '<leader>g', group = 'Git' },
-          { '<leader>j', group = 'Java' },
-          { '<leader>l', group = 'LSP' },
-          { '<leader>m', group = 'Make/Build' },
-          { '<leader>o', group = 'Open/Outline' },
-          { '<leader>p', group = 'Project' },
-          { '<leader>t', group = 'Toggle' },
-          { '<leader>w', group = 'Window' },
-          { '<leader>x', group = 'Diagnostics' },
           {
-            '<leader>?',
-            function()
-              wk.show({ global = false })
-            end,
-            desc = 'Buffer local keymaps',
+            mode = { 'n', 'v' },
+            { '<leader>b', group = 'Buffer' },
+            { '<leader>c', group = 'Copilot/Code' },
+            { '<leader>f', group = 'Find/File' },
+            { '<leader>g', group = 'Git' },
+            { '<leader>j', group = 'Java' },
+            { '<leader>l', group = 'LSP' },
+            { '<leader>m', group = 'Make/Build' },
+            { '<leader>o', group = 'Open/Outline' },
+            { '<leader>p', group = 'Project' },
+            { '<leader>t', group = 'Toggle' },
+            { '<leader>w', group = 'Window' },
+            { '<leader>x', group = 'Diagnostics' },
+          },
+          {
+            mode = 'n',
+            {
+              '<leader>?',
+              function()
+                wk.show({ global = false })
+              end,
+              desc = 'Buffer local keymaps',
+            },
+          },
+          {
+            mode = 'v',
+            { '<leader>ot', desc = 'Translate selection with Ollama' },
+            { '<leader>ce', desc = 'Copilot Explain selection' },
+            { '<leader>cf', desc = 'Copilot Fix selection' },
+            { '<leader>cr', desc = 'Copilot Review selection' },
           },
         },
       })
@@ -199,6 +212,7 @@ return {
           'clangd',
           'ts_ls',
           'gopls',
+          'jdtls',
           'rust_analyzer',
         },
         handlers = {

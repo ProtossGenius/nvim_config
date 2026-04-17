@@ -139,7 +139,7 @@ keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial 
 leader_map('n', '<leader>oa', '<cmd>AerialToggle! left<cr>', 'Toggle Aerial outline')
 
 -- Ollama translation
-keymap('x', '<leader>ot', function()
+keymap('v', '<leader>ot', function()
   require('user.translate').translate_visual_selection()
 end, { desc = 'Translate selection with Ollama' })
 
