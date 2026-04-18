@@ -225,7 +225,12 @@ return {
         },
       })
 
+      local lombok_jar = vim.fn.stdpath('data') .. '/mason/packages/jdtls/lombok.jar'
       vim.lsp.config('jdtls', {
+        cmd = {
+          vim.fn.stdpath('data') .. '/mason/bin/jdtls',
+          '--jvm-arg=-javaagent:' .. lombok_jar,
+        },
         capabilities = capabilities,
         on_attach = on_attach,
         settings = user_lsp.jdtls_settings(),

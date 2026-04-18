@@ -40,6 +40,31 @@ leader_map('n', '<leader>xn', vim.diagnostic.goto_next, 'Next diagnostic')
 leader_map('n', '<leader>xp', vim.diagnostic.goto_prev, 'Previous diagnostic')
 leader_map('n', '<leader>xe', vim.diagnostic.open_float, 'Show diagnostic error')
 
+-- Enter diagnostic float window (press again or use <leader>xf to focus)
+leader_map('n', '<leader>xf', function()
+  local _, winid = vim.diagnostic.open_float({ focus = true })
+  if winid then
+    vim.api.nvim_set_current_win(winid)
+  end
+end, 'Focus diagnostic float')
+
+-- Copy all diagnostics on current line to system clipboard
+leader_map('n', '<leader>xy', function()
+  local diagnostics = vim.diagnostic.get(0, { lnum = vim.api.nvim_win_get_cursor(0)[1] - 1 })
+  if #diagnostics == 0 then
+    vim.notify('No diagnostics on this line', vim.log.levels.INFO)
+    return
+  end
+  local lines = {}
+  for _, d in ipairs(diagnostics) do
+    local severity = vim.diagnostic.severity[d.severity] or 'UNKNOWN'
+    table.insert(lines, string.format('[%s] %s', severity, d.message))
+  end
+  local text = table.concat(lines, '\n')
+  vim.fn.setreg('+', text)
+  vim.notify(string.format('Copied %d diagnostic(s) to clipboard', #diagnostics), vim.log.levels.INFO)
+end, 'Copy line diagnostics to clipboard')
+
 -- Git Changes
 keymap('n', ']c', '<cmd>Gitsigns next_hunk<cr>', { desc = 'Next Git change' })
 keymap('n', '[c', '<cmd>Gitsigns prev_hunk<cr>', { desc = 'Previous Git change' })
