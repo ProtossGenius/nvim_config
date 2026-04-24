@@ -241,9 +241,9 @@ return {
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
         }, {
-          { name = 'buffer' },
-          { name = 'path' },
-        }),
+            { name = 'buffer' },
+            { name = 'path' },
+          }),
         snippet = {
           expand = function(args)
             require('luasnip').lsp_expand(args.body)
@@ -298,8 +298,8 @@ return {
     opts = {},
     -- Optional dependencies
     dependencies = {
-       "nvim-treesitter/nvim-treesitter",
-       "nvim-tree/nvim-web-devicons"
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons"
     },
     config = function()
       require('aerial').setup({
@@ -325,13 +325,13 @@ return {
   -- Kept from your original config
   'voldikss/vim-translator',
   'junegunn/vim-easy-align',
---  {
---    'fatih/vim-go',
---    config = function()
---      vim.g.go_fmt_autosave = 0
---      vim.g.go_imports_autosave = 0
---    end
---  },
+  --  {
+  --    'fatih/vim-go',
+  --    config = function()
+  --      vim.g.go_fmt_autosave = 0
+  --      vim.g.go_imports_autosave = 0
+  --    end
+  --  },
   'tpope/vim-unimpaired',
   'tpope/vim-surround',
   'mattn/emmet-vim',
@@ -348,16 +348,16 @@ return {
     ft = { "markdown" },
   },
   {
-  'ray-x/lsp_signature.nvim',
-  event = 'InsertEnter', -- 在进入插入模式时加载
-  config = function()
-    require('lsp_signature').setup({
-      bind = true, -- 在输入时自动显示签名帮助
-      handler_opts = {
-        border = 'rounded', -- 浮动窗口边框
-      },
-      -- 其他配置项...
-    })
-  end
-},
+    'ray-x/lsp_signature.nvim',
+    event = 'InsertEnter', -- 在进入插入模式时加载
+    config = function()
+      require('lsp_signature').setup({
+        bind = true, -- 在输入时自动显示签名帮助
+        handler_opts = {
+          border = 'rounded', -- 浮动窗口边框
+        },
+        -- 其他配置项...
+      })
+    end
+  },
 }
