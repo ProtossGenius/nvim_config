@@ -73,6 +73,10 @@ cp -a \
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 source_data_root="$data_home/nvim"
 
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
+}
+
 copy_data_dir() {
   local name="$1"
   local source="$source_data_root/$name"
@@ -136,6 +140,28 @@ done
 
 config_target="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 data_target="${XDG_DATA_HOME:-$HOME/.local/share}/nvim"
+BUNDLED_DATA_ROOT=PLACEHOLDER_DATA_ROOT
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
+}
+
+rewrite_embedded_data_paths() {
+  local search_root="$1"
+  local target_root="$2"
+  local from_escaped
+  local to_escaped
+  local path
+
+  [ -d "$search_root" ] || return 0
+
+  from_escaped=$(escape_sed_replacement "$BUNDLED_DATA_ROOT")
+  to_escaped=$(escape_sed_replacement "$target_root")
+
+  while IFS= read -r -d '' path; do
+    sed -i "s|$from_escaped|$to_escaped|g" "$path"
+  done < <(grep -rIlZ -F "$BUNDLED_DATA_ROOT" "$search_root" || true)
+}
 
 if [ "$skip_confirm" = false ]; then
   echo "This will remove and replace:"
@@ -163,6 +189,8 @@ trap 'rm -rf "$tmp_dir"' EXIT
 HEADER_BYTES=PLACEHOLDER_BYTES
 tail -c +"$((HEADER_BYTES + 1))" "$0" | tar -xzf - -C "$tmp_dir"
 
+rewrite_embedded_data_paths "$tmp_dir/nvim-bundle/data/nvim" "$data_target"
+
 mkdir -p "$config_target" "$data_target"
 
 cp -a "$tmp_dir/nvim-bundle/config/nvim"/. "$config_target"/
@@ -189,6 +217,9 @@ HEADER
 
 # Patch the byte-offset placeholder to the real header size.
 # Iterate because replacing the placeholder changes the file size.
+bundled_data_root=$(printf '%q' "$source_data_root")
+bundled_data_root_escaped=$(escape_sed_replacement "$bundled_data_root")
+sed -i "s|^BUNDLED_DATA_ROOT=.*$|BUNDLED_DATA_ROOT=${bundled_data_root_escaped}|" "$installer_header"
 prev_bytes=0
 header_bytes=$(wc -c < "$installer_header")
 while [ "$header_bytes" != "$prev_bytes" ]; do
