@@ -39,6 +39,49 @@ require('lazy').setup('user.plugins', {
   },
 })
 
+if vim.fn.has('nvim-0.12') == 1 then
+  local original_treesitter_start = vim.treesitter.start
+  local builtin_ts_filetypes = {
+    c = 'c',
+    cpp = 'cpp',
+    go = 'go',
+    java = 'java',
+    javascript = 'javascript',
+    javascriptreact = 'javascript',
+    lua = 'lua',
+    python = 'python',
+    rust = 'rust',
+    typescript = 'typescript',
+    typescriptreact = 'tsx',
+  }
+
+  -- Neovim 0.12 ftplugins may call vim.treesitter.start() even when no parser is available.
+  -- Guard that path so WSL or minimal installs do not error during startup or file open.
+  vim.treesitter.start = function(bufnr, lang)
+    bufnr = bufnr or 0
+    local resolved_lang = lang
+
+    if not resolved_lang then
+      local filetype = vim.bo[bufnr].filetype
+      resolved_lang = vim.treesitter.language.get_lang(filetype) or filetype
+    end
+
+    if not resolved_lang or not pcall(vim.treesitter.language.inspect, resolved_lang) then
+      return
+    end
+
+    return original_treesitter_start(bufnr, resolved_lang)
+  end
+
+  vim.api.nvim_create_autocmd('FileType', {
+    group = vim.api.nvim_create_augroup('BuiltinTreesitter', { clear = true }),
+    pattern = vim.tbl_keys(builtin_ts_filetypes),
+    callback = function(args)
+      vim.treesitter.start(args.buf, builtin_ts_filetypes[args.match])
+    end,
+  })
+end
+
 -- Load utility functions
 require('user.util')
 

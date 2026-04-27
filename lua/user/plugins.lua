@@ -1,6 +1,8 @@
 -- [[ user.plugins ]]
 -- List of plugins for lazy.nvim
 
+local is_nvim_012_or_newer = vim.fn.has('nvim-0.12') == 1
+
 return {
   -- Colorscheme
   {
@@ -129,7 +131,10 @@ return {
   -- Syntax Highlighting
   {
     'nvim-treesitter/nvim-treesitter',
+    branch = 'master',
+    lazy = false,
     build = ':TSUpdate',
+    enabled = not is_nvim_012_or_newer,
     config = function()
       require('nvim-treesitter.configs').setup {
         ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'javascript', 'typescript', 'java' },
@@ -297,9 +302,11 @@ return {
     'stevearc/aerial.nvim',
     opts = {},
     -- Optional dependencies
-    dependencies = {
+    dependencies = is_nvim_012_or_newer and {
+      "nvim-tree/nvim-web-devicons",
+    } or {
       "nvim-treesitter/nvim-treesitter",
-      "nvim-tree/nvim-web-devicons"
+      "nvim-tree/nvim-web-devicons",
     },
     config = function()
       require('aerial').setup({
