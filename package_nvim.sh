@@ -155,6 +155,8 @@ rewrite_embedded_data_paths() {
 
   [ -d "$search_root" ] || return 0
 
+  # Rewrite embedded absolute data paths in bundled text files so Mason-managed
+  # wrappers and similar launchers still work after installing as another user.
   from_escaped=$(escape_sed_replacement "$BUNDLED_DATA_ROOT")
   to_escaped=$(escape_sed_replacement "$target_root")
 

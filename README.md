@@ -39,6 +39,6 @@
 - `${XDG_CONFIG_HOME:-~/.config}/nvim`
 - `${XDG_DATA_HOME:-~/.local/share}/nvim`
 
-安装阶段还会把打包时机器里的旧 `~/.local/share/nvim` 绝对路径，重写成当前机器的实际 XDG data 路径；像 Mason 的 `jdtls` 这类 wrapper 即使是在 `root` 和普通用户之间迁移，也不会继续指向原机器上的旧路径。
+安装阶段还会把打包时机器里的旧 `~/.local/share/nvim` 绝对路径，重写成当前机器的实际 XDG data 路径；因此不只是 `jdtls`，所有 Mason 管理、且在文本 wrapper / launcher 里内嵌了旧路径的 LSP / 工具入口，都会一起被修正，不会继续指向原机器上的旧路径。
 
 `./package_nvim.sh -h` 和生成后的 `target/install.sh -h` 都可查看帮助；传入不支持的参数时会直接展示帮助信息并返回非零状态。
