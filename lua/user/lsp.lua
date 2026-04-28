@@ -35,15 +35,13 @@ local function attach_java_keymaps(bufnr)
 end
 
 function M.jdtls_settings()
-  local user_java = require('user.java')
-
-  return vim.tbl_deep_extend('force', {
+  return {
     java = {
       eclipse = {
-        downloadSources = user_java.download_sources(),
+        downloadSources = true,
       },
       maven = {
-        downloadSources = user_java.download_sources(),
+        downloadSources = true,
       },
       contentProvider = {
         preferred = 'fernflower',
@@ -61,7 +59,7 @@ function M.jdtls_settings()
         enabled = true,
       },
     },
-  }, user_java.spring_boot_settings())
+  }
 end
 
 function M.on_attach(client, bufnr)
@@ -97,17 +95,7 @@ function M.on_attach(client, bufnr)
 
   if client.name == 'jdtls' then
     attach_java_keymaps(bufnr)
-    buf_map(bufnr, 'n', '<leader>lP', function()
-      require('user.java').toggle_performance_mode()
-    end, 'LSP: Toggle JDTLS performance mode')
-    buf_map(bufnr, 'n', '<leader>lJ', function()
-      require('user.java').show_status()
-    end, 'LSP: Show JDTLS status')
   end
-end
-
-function M.setup()
-  return
 end
 
 return M

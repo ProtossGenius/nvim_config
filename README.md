@@ -42,25 +42,3 @@
 安装阶段还会把打包时机器里的旧 `~/.local/share/nvim` 绝对路径，重写成当前机器的实际 XDG data 路径；因此不只是 `jdtls`，所有 Mason 管理、且在文本 wrapper / launcher 里内嵌了旧路径的 LSP / 工具入口，都会一起被修正，不会继续指向原机器上的旧路径。
 
 `./package_nvim.sh -h` 和生成后的 `target/install.sh -h` 都可查看帮助；传入不支持的参数时会直接展示帮助信息并返回非零状态。
-
-## Java / 内网 / JDTLS 状态
-
-- 默认启用 `spring-boot-tools`，并保留其联网能力；
-- 默认关闭 JDTLS 的 `downloadSources`，减少跳转时的外网请求和等待；
-- 默认开启 JDTLS performance mode：额外给 JVM 注入更激进的内存 / class sharing / jar memory mapping 参数；
-- 状态栏会显示 `jdtls` 当前进度，另外也可以手动执行 `:JdtlsStatus` 查看当前状态。
-
-如果你在内网 / 无外网环境里想关闭 Spring Boot Tools 的联网能力，或想重新打开源码下载，在加载插件前加：
-
-```lua
-vim.g.nvim_java_enable_spring_boot_network = false
-vim.g.nvim_java_download_sources = true
-```
-
-JDTLS performance mode 可随时切换：
-
-```vim
-:JdtlsPerformanceMode
-:JdtlsPerformanceMode toggle
-:JdtlsPerformanceMode off
-```
