@@ -19,12 +19,32 @@ return {
     'nvim-lualine/lualine.nvim',
     dependencies = { 'nvim-tree/nvim-web-devicons' },
     config = function()
+      local user_java = require('user.java')
+      user_java.setup()
+
       require('lualine').setup {
         options = {
           theme = 'gruvbox',
           icons_enabled = true,
           component_separators = { left = '', right = '' },
           section_separators = { left = '', right = '' },
+        },
+        sections = {
+          lualine_a = { 'mode' },
+          lualine_b = { 'branch', 'diff', 'diagnostics' },
+          lualine_c = { 'filename' },
+          lualine_x = {
+            {
+              user_java.progress_status,
+              cond = user_java.has_jdtls,
+            },
+            'lsp_status',
+            'encoding',
+            'fileformat',
+            'filetype',
+          },
+          lualine_y = { 'progress' },
+          lualine_z = { 'location' },
         },
       }
     end,
@@ -176,13 +196,12 @@ return {
       local luasnip = require('luasnip')
       local lsp = require('lsp-zero').preset({})
       local user_lsp = require('user.lsp')
+      local user_java = require('user.java')
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
-      require('java').setup({
-        lombok = {
-          enable = true,
-        },
-      })
+      user_java.setup()
+      user_lsp.setup()
+      require('java').setup(user_java.nvim_java_config())
 
       -- 加载本地代码片段的辅助函数
       local function load_local_snippets()
