@@ -3,6 +3,65 @@
 
 local M = {}
 
+local function supports_range_format(bufnr)
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
+    if client.supports_method('textDocument/rangeFormatting') then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function changed_ranges(bufnr)
+  local ok, gitsigns = pcall(require, 'gitsigns')
+  if not ok or type(gitsigns.get_hunks) ~= 'function' then
+    return nil
+  end
+
+  local hunks = gitsigns.get_hunks(bufnr)
+  if not hunks then
+    return nil
+  end
+
+  local ranges = {}
+  for _, hunk in ipairs(hunks) do
+    local added = hunk.added or {}
+    if (added.count or 0) > 0 then
+      table.insert(ranges, {
+        start_line = added.start,
+        end_line = added.start + added.count - 1,
+      })
+    end
+  end
+
+  return ranges
+end
+
+local function format_changed_lines(bufnr)
+  local ranges = changed_ranges(bufnr)
+  if ranges == nil then
+    vim.lsp.buf.format({ bufnr = bufnr, async = false })
+    return
+  end
+
+  if #ranges == 0 or not supports_range_format(bufnr) then
+    return
+  end
+
+  for index = #ranges, 1, -1 do
+    local range = ranges[index]
+    vim.lsp.buf.format({
+      bufnr = bufnr,
+      async = false,
+      range = {
+        start = { range.start_line - 1, 0 },
+        ['end'] = { range.end_line - 1, 0 },
+      },
+    })
+  end
+end
+
 --- Toggles between C/C++ header and source files.
 function M.toggle_header_source()
   local current_file = vim.fn.expand('%:p')
@@ -74,7 +133,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     end
 
     if not string.find(filename, "wasm", 1, true) then -- 1 for start position, true for plain search
-      vim.lsp.buf.format({ async = false })
+      format_changed_lines(0)
     end
   end,
 })

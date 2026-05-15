@@ -111,3 +111,10 @@ if vim.fn.executable('fcitx-remote') == 1 then
     end,
   })
 end
+
+-- 开启折行显示
+vim.opt.wrap = true
+-- 优化折行体验：不在单词中间断开
+vim.opt.linebreak = true
+-- 配合 linebreak，设置折行后的缩进与上一行对齐
+vim.opt.breakindent = true

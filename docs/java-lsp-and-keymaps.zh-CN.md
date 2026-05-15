@@ -43,6 +43,30 @@
 
 也就是说，这次已经把 **Neovim 侧** 的 Lombok 感知链路补齐了；如果项目本身没配好 Lombok，LSP 还是无法凭空推断。
 
+### 2.4 MyBatis Mapper 联动
+
+对于 `*Mapper.java` 和 `*Mapper.xml`：
+
+- `gf`：在 Java / XML 之间切换；
+- `gF`：在分屏中打开另一侧；
+- `<C-]>`：在 Java / XML 之间直接来回切换；
+- `SPC l i`：在 mapper 文件里复用为“切到另一侧”；
+- `SPC l D`：在 mapper 文件里复用为“分屏切到另一侧”；
+- 如果当前光标落在 Java 方法声明或 XML 的 `<select id="...">` / `<insert id="...">` 一类语句附近，会尽量直接落到对应的方法 / `id` 上，而不是只切到文件开头。
+
+另外，`Mapper.xml` 里 `<select>` / `<insert>` / `<update>` / `<delete>` / `<sql>` 这些块内部的 SQL 也补了高亮。
+
+### 2.5 JDTLS runtime 选择
+
+这次把 JDTLS 的 runtime 选择改成了“**优先复用现有 runtime，并让项目声明的低版本优先匹配对应运行时**”：
+
+- JDTLS 启动优先复用本机已有 JDK；
+- 运行时列表除了系统里已有的 JDK，也会纳入 `nvim-java` 已经准备好的 runtime；
+- 如果 Maven 项目声明的是 Java 17，而运行时列表里存在 `JavaSE-17`，JDTLS 会优先把项目绑定到这个低版本 runtime；
+- 本机实在没有可用 JDK 时，才让 `nvim-java` 走自动安装兜底。
+
+同时，`~/.m2/settings.xml` 现在也会透传给 JDTLS 的 Maven 导入，所以命令行 `mvn` 和编辑器里的 Maven 项目导入会共用同一套镜像配置。
+
 ## 3. which-key 提示
 
 现在按下这些前缀后，会在底部弹出提示：
@@ -73,9 +97,9 @@
 | Leader | 作用 | 旧快捷键 |
 | :--- | :--- | :--- |
 | `SPC l d` | 跳到定义 | `gd`, `<C-]>` |
-| `SPC l D` | 跳到声明 | `gD` |
+| `SPC l D` | 跳到声明；在 mapper 文件里分屏切到 XML/Java | `gD` |
 | `SPC l r` | 查看引用 | `gr` |
-| `SPC l i` | 跳到实现 | - |
+| `SPC l i` | 跳到实现；在 mapper 文件里切到 XML/Java | - |
 | `SPC l t` | 跳到类型定义 | - |
 | `SPC l h` | Hover 文档 | `K` |
 | `SPC l a` | Code Action | `ff` |
@@ -109,7 +133,7 @@
 
 | Leader | 作用 | 原快捷键 |
 | :--- | :--- | :--- |
-| `SPC f a` | 查找所有文件（含隐藏文件） | `<C-p>` |
+| `SPC f a` | 查找所有文件（含隐藏 / gitignored，但额外遵守 `.nvimignore`） | `<C-p>` |
 | `SPC f b` | 查找 buffer | `<A-r>` |
 | `SPC f g` | 全局 grep | `<A-f>` |
 | `SPC f r` | 最近文件 | `<C-n>` |
@@ -123,6 +147,7 @@
 | Leader | 作用 | 原快捷键 |
 | :--- | :--- | :--- |
 | `SPC w h/j/k/l` | 窗口切换 | `SPC ←/↓/↑/→` |
+| `Alt-j/k` | 窗口切换（下 / 上） | - |
 | `SPC w v` | 垂直分屏 | `<leader>sv` |
 | `SPC x n` | 下一条诊断 | `<M-n>` |
 | `SPC x p` | 上一条诊断 | `<M-p>` |

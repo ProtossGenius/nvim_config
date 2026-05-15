@@ -8,6 +8,10 @@ local function leader_map(mode, lhs, rhs, desc)
   keymap(mode, lhs, rhs, vim.tbl_extend('force', opts, { desc = desc }))
 end
 
+local function expr_map(mode, lhs, rhs, desc)
+  keymap(mode, lhs, rhs, vim.tbl_extend('force', opts, { expr = true, desc = desc }))
+end
+
 -- Insert Mode
 keymap('i', 'jj', '<ESC>', opts)
 -- 在终端模式下，将 jj 映射为退出终端模式
@@ -35,6 +39,10 @@ leader_map('n', '<leader>wj', '<C-w>j', 'Move to lower window')
 leader_map('n', '<leader>wk', '<C-w>k', 'Move to upper window')
 leader_map('n', '<leader>wl', '<C-w>l', 'Move to right window')
 leader_map('n', '<leader>wv', '<cmd>vsplit<cr>', 'Split window vertically')
+keymap('n', '<M-j>', '<C-w>j', { desc = 'Move to lower window' })
+keymap('n', '<M-k>', '<C-w>k', { desc = 'Move to upper window' })
+keymap('t', '<M-j>', '<C-\\><C-n><C-w>j', { desc = 'Move to lower window' })
+keymap('t', '<M-k>', '<C-\\><C-n><C-w>k', { desc = 'Move to upper window' })
 
 -- Diagnostics (replaces ALE bindings)
 keymap({'n', 'i'}, '<M-n>', vim.diagnostic.goto_next, { desc = 'Next diagnostic' })
@@ -80,7 +88,7 @@ keymap('n', '<C-n>', '<cmd>Telescope oldfiles<cr>', { desc = 'Find recent files'
 keymap('n', '<leader>p', '<cmd>Telescope projects<cr>', { desc = 'Find projects' })
 keymap('n', '<leader>ds', '<cmd>Telescope lsp_document_symbols<cr>', { desc = 'Document symbols' })
 keymap('n', '<leader>ts', '<cmd>Telescope tags<cr>', { desc = 'Find tags' })
-leader_map('n', '<leader>fa', '<cmd>Telescope find_files hidden=true<cr>', 'Find files (including hidden)')
+leader_map('n', '<leader>fa', '<cmd>Telescope find_files hidden=true no_ignore=true no_ignore_parent=true follow=true<cr>', 'Find files (including ignored)')
 leader_map('n', '<leader>fb', '<cmd>Telescope buffers<cr>', 'Find buffers')
 leader_map('n', '<leader>fg', '<cmd>Telescope live_grep<cr>', 'Live Grep')
 leader_map('n', '<leader>fr', '<cmd>Telescope oldfiles<cr>', 'Find recent files')
@@ -139,14 +147,28 @@ keymap({'n', 'i', 'v', 't'}, '<M-t>', toggle_terminal, { desc = 'Toggle terminal
 leader_map('n', '<leader>tt', toggle_terminal, 'Toggle terminal')
 
 -- Better movement
-keymap('n', 'j', 'gj')
-keymap('n', 'k', 'gk')
+expr_map({ 'n', 'x', 'o' }, 'j', "v:count == 0 ? 'gj' : 'j'", 'Down by display line')
+expr_map({ 'n', 'x', 'o' }, 'k', "v:count == 0 ? 'gk' : 'k'", 'Up by display line')
+expr_map({ 'n', 'x', 'o' }, '<Down>', "v:count == 0 ? 'gj' : 'j'", 'Down by display line')
+expr_map({ 'n', 'x', 'o' }, '<Up>', "v:count == 0 ? 'gk' : 'k'", 'Up by display line')
 
 -- Compile and Run commands
 -- Helper function to run commands in a terminal
+local function term_exec_cwd()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local bufname = vim.api.nvim_buf_get_name(bufnr)
+  if vim.bo[bufnr].filetype == 'dirvish' and bufname ~= '' then
+    return vim.fn.fnamemodify(bufname, ':p')
+  end
+
+  return vim.fn.getcwd()
+end
+
 local function term_exec(cmd)
   vim.cmd('wa')
-  vim.cmd('terminal ' .. cmd)
+  vim.cmd('enew')
+  vim.fn.termopen(cmd, { cwd = term_exec_cwd() })
+  vim.cmd('startinsert')
 end
 keymap('v', '<C-c>', 'y')
 keymap('n', '<S-f>', 'gF')

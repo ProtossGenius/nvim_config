@@ -40,6 +40,7 @@ opt.timeoutlen = 400
 opt.scrolloff = 8 -- Lines of context around the cursor
 opt.sidescrolloff = 8
 opt.wrap = false -- Disable line wrapping
+opt.whichwrap:append('<,>,[,],h,l')
 
 -- Performance
 opt.updatetime = 250 -- Faster updates (e.g., for git signs)

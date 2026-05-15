@@ -47,7 +47,7 @@ function M.jdtls_settings()
         preferred = 'fernflower',
       },
       configuration = {
-        updateBuildConfiguration = 'interactive',
+        updateBuildConfiguration = 'automatic',
       },
       implementationsCodeLens = {
         enabled = true,
@@ -64,6 +64,7 @@ end
 
 function M.on_attach(client, bufnr)
   local builtin = require('telescope.builtin')
+  local ok_user_java, user_java = pcall(require, 'user.java')
 
   buf_map(bufnr, 'n', '<C-]>', vim.lsp.buf.definition, 'Go to Definition')
   buf_map(bufnr, 'n', 'gd', vim.lsp.buf.definition, 'Go to Definition')
@@ -95,6 +96,10 @@ function M.on_attach(client, bufnr)
 
   if client.name == 'jdtls' then
     attach_java_keymaps(bufnr)
+  end
+
+  if ok_user_java then
+    user_java.attach_mapper_keymaps(bufnr)
   end
 end
 

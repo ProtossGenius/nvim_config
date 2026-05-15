@@ -99,6 +99,55 @@ return {
     config = function()
       local telescope = require('telescope')
       local builtin = require('telescope.builtin')
+      local uv = vim.uv or vim.loop
+
+      local function existing_ignore_files()
+        local files = {}
+        local candidates = {
+          vim.fs.joinpath(vim.fn.stdpath('config'), '.nvimignore'),
+          vim.fs.joinpath(vim.fn.getcwd(), '.nvimignore'),
+        }
+
+        for _, path in ipairs(candidates) do
+          local stat = uv.fs_stat(path)
+          if stat and stat.type == 'file' then
+            table.insert(files, path)
+          end
+        end
+
+        return files
+      end
+
+      local function find_all_files_command()
+        local command = {
+          'rg',
+          '--files',
+          '--hidden',
+          '--follow',
+          '--color',
+          'never',
+          '--no-ignore-vcs',
+          '--no-ignore-parent',
+          '--no-ignore-dot',
+          '--no-ignore-exclude',
+          '--glob',
+          '!.git',
+          '--glob',
+          '!.git/**',
+        }
+
+        for _, ignore_file in ipairs(existing_ignore_files()) do
+          vim.list_extend(command, { '--ignore-file', ignore_file })
+        end
+
+        return command
+      end
+
+      local find_all_files = function()
+        builtin.find_files({
+          find_command = find_all_files_command(),
+        })
+      end
 
       require('project_nvim').setup({
         detection_methods = { 'pattern' },
@@ -118,13 +167,12 @@ return {
       })
       telescope.load_extension('projects')
 
-      vim.keymap.set('n', '<c-p>', function()
-        builtin.find_files({ hidden = true })
-      end, { desc = 'Find files (including hidden)' })
+      vim.keymap.set('n', '<c-p>', find_all_files, { desc = 'Find files (including ignored)' })
       vim.keymap.set('n', '<A-f>', builtin.live_grep, { desc = 'Live Grep' })
       vim.keymap.set('n', '<A-r>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
       vim.keymap.set('n', '<leader>ff', builtin.git_files, { desc = 'Find git files' })
+      vim.keymap.set('n', '<leader>fa', find_all_files, { desc = 'Find files (including ignored)' })
     end,
   },
 
@@ -175,14 +223,12 @@ return {
     config = function()
       local luasnip = require('luasnip')
       local lsp = require('lsp-zero').preset({})
+      local user_java = require('user.java')
       local user_lsp = require('user.lsp')
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
-      require('java').setup({
-        lombok = {
-          enable = true,
-        },
-      })
+      require('java').setup(user_java.java_setup_config())
+      user_java.setup()
 
       -- 加载本地代码片段的辅助函数
       local function load_local_snippets()
@@ -217,7 +263,6 @@ return {
           'clangd',
           'ts_ls',
           'gopls',
-          'jdtls',
           'rust_analyzer',
         },
         handlers = {
@@ -226,18 +271,10 @@ return {
         },
       })
 
-      local mason_root = vim.fn.stdpath('data') .. '/mason'
-      local lombok_jar = mason_root .. '/packages/jdtls/lombok.jar'
-      local jdtls_launcher = mason_root .. '/packages/jdtls/bin/jdtls'
-      vim.lsp.config('jdtls', {
-        cmd = {
-          jdtls_launcher,
-          '--jvm-arg=-javaagent:' .. lombok_jar,
-        },
+      vim.lsp.config('jdtls', vim.tbl_deep_extend('force', {
         capabilities = capabilities,
         on_attach = on_attach,
-        settings = user_lsp.jdtls_settings(),
-      })
+      }, user_java.jdtls_config(user_lsp.jdtls_settings())))
       vim.lsp.enable('jdtls')
 
       -- Setup completion
