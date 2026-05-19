@@ -112,6 +112,53 @@ if vim.fn.executable('fcitx-remote') == 1 then
   })
 end
 
+-- macOS input method switching (skip if im-select is not installed)
+if vim.fn.has('macunix') == 1 and vim.fn.executable('im-select') == 1 then
+  local previous_input_source = nil
+  local english_input_source = vim.g.mac_english_input_source or 'com.apple.keylayout.ABC'
+  local notify_failed = false
+
+  local function run_im_select(args)
+    local output = vim.fn.system(vim.list_extend({ 'im-select' }, args or {}))
+    if vim.v.shell_error ~= 0 then
+      if not notify_failed then
+        notify_failed = true
+        vim.schedule(function()
+          vim.notify('im-select failed to switch macOS input method.', vim.log.levels.WARN)
+        end)
+      end
+      return nil
+    end
+
+    return vim.trim(output)
+  end
+
+  vim.api.nvim_create_autocmd("InsertLeave", {
+    callback = function()
+      local current_input_source = run_im_select()
+      if not current_input_source or current_input_source == '' then
+        return
+      end
+
+      if current_input_source ~= english_input_source then
+        previous_input_source = current_input_source
+        run_im_select({ english_input_source })
+      else
+        previous_input_source = nil
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    callback = function()
+      if previous_input_source and previous_input_source ~= english_input_source then
+        run_im_select({ previous_input_source })
+      end
+      previous_input_source = nil
+    end,
+  })
+end
+
 -- 开启折行显示
 vim.opt.wrap = true
 -- 优化折行体验：不在单词中间断开
