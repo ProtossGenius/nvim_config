@@ -197,10 +197,25 @@ leader_map('n', '<leader>oh', function() require('user.util').toggle_header_sour
 keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial outline' })
 leader_map('n', '<leader>oa', '<cmd>AerialToggle! left<cr>', 'Toggle Aerial outline')
 
--- Ollama translation
-keymap('v', '<leader>ot', function()
-  require('user.translate').translate_visual_selection()
-end, { desc = 'Translate selection with Ollama' })
+local function llm_translate()
+  require('user.translate').translate()
+end
+
+local function llm_ask_with_file()
+  require('user.llm.ask').open('full')
+end
+
+local function llm_ask_with_selection()
+  require('user.llm.ask').open('selection')
+end
+
+keymap({ 'n', 'x' }, '<leader>Lt', llm_translate, { desc = 'LLM: Translate' })
+keymap({ 'n', 'x' }, '<leader>L/', llm_ask_with_file, { desc = 'LLM: Ask with file context' })
+keymap({ 'n', 'x' }, '<leader>L>', llm_ask_with_selection, { desc = 'LLM: Ask with selection' })
+keymap({ 'n', 'x' }, '<leader>L?', llm_ask_with_selection, { desc = 'LLM: Ask with selection' })
+keymap({ 'n', 'x' }, '<leader>/', llm_ask_with_file, { desc = 'Ask with file context' })
+keymap({ 'n', 'x' }, '<leader>>', llm_ask_with_selection, { desc = 'Ask with selection' })
+keymap({ 'n', 'x' }, '<leader>ot', llm_translate, { desc = 'Translate with LLM' })
 
 -- Go plugin mappings (kept for compatibility if vim-go is enabled again)
 keymap('n', '<leader>gs', '<Plug>(go-implements)', { desc = 'Go implements' })

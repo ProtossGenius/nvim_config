@@ -57,6 +57,7 @@ return {
             { '<leader>f', group = 'Find/File' },
             { '<leader>g', group = 'Git' },
             { '<leader>j', group = 'Java' },
+            { '<leader>L', group = 'LLM' },
             { '<leader>l', group = 'LSP' },
             { '<leader>m', group = 'Make/Build' },
             { '<leader>p', group = 'Project' },
@@ -77,11 +78,6 @@ return {
               end,
               desc = 'Buffer local keymaps',
             },
-          },
-          {
-            mode = 'v',
-            { '<leader>o', group = 'Ollama' },
-            { '<leader>ot', desc = 'Translate selection with Ollama' },
           },
         },
       })
