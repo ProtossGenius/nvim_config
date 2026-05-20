@@ -42,17 +42,21 @@ require('lazy').setup('user.plugins', {
 if vim.fn.has('nvim-0.12') == 1 then
   local original_treesitter_start = vim.treesitter.start
   local builtin_ts_filetypes = {
+    bash = 'bash',
     c = 'c',
     cpp = 'cpp',
     go = 'go',
+    html = 'html',
     java = 'java',
     javascript = 'javascript',
     javascriptreact = 'javascript',
     lua = 'lua',
     python = 'python',
     rust = 'rust',
+    sh = 'bash',
     typescript = 'typescript',
     typescriptreact = 'tsx',
+    xml = 'xml',
   }
 
   -- Neovim 0.12 ftplugins may call vim.treesitter.start() even when no parser is available.

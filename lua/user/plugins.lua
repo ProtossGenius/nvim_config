@@ -178,15 +178,66 @@ return {
     branch = 'master',
     lazy = false,
     build = ':TSUpdate',
-    enabled = not is_nvim_012_or_newer,
     config = function()
       require('nvim-treesitter.configs').setup {
-        ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'javascript', 'typescript', 'java' },
+        ensure_installed = {
+          'bash',
+          'c',
+          'cpp',
+          'go',
+          'html',
+          'java',
+          'javascript',
+          'lua',
+          'python',
+          'rust',
+          'tsx',
+          'typescript',
+          'xml',
+        },
         sync_install = false,
         auto_install = true,
-        highlight = { enable = true },
-        indent = { enable = true },
+        highlight = { enable = not is_nvim_012_or_newer },
+        indent = { enable = not is_nvim_012_or_newer },
       }
+    end,
+  },
+
+  -- Commenting
+  {
+    'JoosepAlviste/nvim-ts-context-commentstring',
+    lazy = false,
+    opts = {
+      enable_autocmd = false,
+    },
+  },
+  {
+    'numToStr/Comment.nvim',
+    lazy = false,
+    dependencies = {
+      'JoosepAlviste/nvim-ts-context-commentstring',
+    },
+    config = function()
+      require('Comment').setup({
+        pre_hook = require('user.comment').commentstring_pre_hook,
+      })
+    end,
+  },
+  {
+    'kana/vim-textobj-user',
+    lazy = false,
+  },
+  {
+    'glts/vim-textobj-comment',
+    lazy = false,
+    dependencies = {
+      'kana/vim-textobj-user',
+    },
+    config = function()
+      local comment = require('user.comment')
+
+      vim.keymap.set({ 'o', 'x' }, 'ac', comment.select_around, { desc = 'Select comment' })
+      vim.keymap.set({ 'o', 'x' }, 'ic', comment.select_inner, { desc = 'Select inner comment' })
     end,
   },
 
