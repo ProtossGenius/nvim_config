@@ -16,10 +16,6 @@ local function toggle_comment_current()
   require('user.comment').toggle_current()
 end
 
-local function toggle_comment_visual()
-  require('user.comment').toggle_visual()
-end
-
 -- Insert Mode
 keymap('i', 'jj', '<ESC>', opts)
 -- 在终端模式下，将 jj 映射为退出终端模式
@@ -30,8 +26,8 @@ keymap({ 'i', 'n', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
 leader_map('n', '<leader>fs', '<cmd>w<cr>', 'Save file')
 keymap('n', '<C-_>', toggle_comment_current, { desc = 'Toggle comment' })
 keymap('n', '<C-/>', toggle_comment_current, { desc = 'Toggle comment' })
-keymap('x', '<C-_>', toggle_comment_visual, { desc = 'Toggle comment selection' })
-keymap('x', '<C-/>', toggle_comment_visual, { desc = 'Toggle comment selection' })
+keymap('x', '<C-_>', '<Esc><Cmd>lua require("user.comment").toggle_visual()<CR>', { desc = 'Toggle comment selection' })
+keymap('x', '<C-/>', '<Esc><Cmd>lua require("user.comment").toggle_visual()<CR>', { desc = 'Toggle comment selection' })
 
 -- File Explorer
 -- keymap('n', '-', '<cmd>Dirvish<cr>', { desc = 'Open Dirvish' })

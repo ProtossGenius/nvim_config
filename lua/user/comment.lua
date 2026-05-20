@@ -18,6 +18,14 @@ local function refresh_treesitter()
   end
 end
 
+local function startswith(text, prefix)
+  return prefix ~= nil and prefix ~= '' and text:sub(1, #prefix) == prefix
+end
+
+local function endswith(text, suffix)
+  return suffix ~= nil and suffix ~= '' and text:sub(-#suffix) == suffix
+end
+
 local function split_commentstring(commentstring)
   if type(commentstring) ~= 'string' or commentstring == '' then
     return nil, nil
@@ -46,6 +54,20 @@ local function supports_block_comment(visual_mode)
   return type(commentstring) == 'string' and commentstring:match('%%s') ~= nil
 end
 
+local function current_visual_mode()
+  local mode = vim.fn.visualmode()
+  if mode == 'v' or mode == 'V' or mode == visual_block_mode then
+    return mode
+  end
+
+  local current = vim.api.nvim_get_mode().mode
+  if current == 'v' or current == 'V' or current == visual_block_mode then
+    return current
+  end
+
+  return 'v'
+end
+
 local function in_visual_mode()
   local mode = vim.api.nvim_get_mode().mode
   return mode == 'v' or mode == 'V' or mode == visual_block_mode
@@ -68,7 +90,7 @@ local function start_visual_selection(selection_mode, start_pos, end_pos)
   vim.api.nvim_win_set_cursor(0, { end_pos[2], math.max(0, end_pos[3] - 1) })
 end
 
-local function get_embedded_comment_node()
+local function get_comment_context()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local ok, node = pcall(vim.treesitter.get_node, {
     bufnr = 0,
@@ -105,12 +127,7 @@ local function get_embedded_comment_node()
     return nil, nil
   end
 
-  local lang = lang_tree:lang()
-  if lang == vim.bo.filetype then
-    return nil, nil
-  end
-
-  return node, lang
+  return node, lang_tree:lang()
 end
 
 local function build_charwise_selection(srow, scol, erow, ecol)
@@ -187,8 +204,8 @@ local function trim_inner_block_comment(node, left, right)
   return build_charwise_selection(srow, start_col, erow, end_col)
 end
 
-local function get_embedded_textobj_selection(inside)
-  local node, lang = get_embedded_comment_node()
+local function get_comment_textobj_selection(inside)
+  local node, lang = get_comment_context()
   if not node or not lang then
     return nil
   end
@@ -198,7 +215,7 @@ local function get_embedded_textobj_selection(inside)
   local line_left = split_commentstring(get_commentstring(lang, comment_utils.ctype.linewise))
   local block_left, block_right = split_commentstring(get_commentstring(lang, comment_utils.ctype.blockwise))
 
-  if block_left and block_right and block_right ~= '' and vim.startswith(text, block_left) and vim.endswith(text, block_right) then
+  if block_left and block_right and startswith(text, block_left) and endswith(text, block_right) then
     if inside then
       return trim_inner_block_comment(node, block_left, block_right)
     end
@@ -207,7 +224,7 @@ local function get_embedded_textobj_selection(inside)
     return build_charwise_selection(srow, scol, erow, ecol)
   end
 
-  if line_left and vim.startswith(text, line_left) then
+  if line_left and startswith(text, line_left) then
     if inside then
       return trim_inner_line_comment(node, line_left)
     end
@@ -246,28 +263,26 @@ function M.toggle_current()
 end
 
 function M.toggle_visual(visual_mode)
-  visual_mode = visual_mode or vim.fn.visualmode()
+  visual_mode = visual_mode or current_visual_mode()
 
   refresh_treesitter()
 
-  local comment_type
-  if visual_mode == 'V' or visual_mode == visual_block_mode then
-    comment_type = 'linewise'
-  else
-    comment_type = supports_block_comment(visual_mode) and 'blockwise' or 'linewise'
+  local motion = visual_mode
+  local comment_type = 'linewise'
+
+  if visual_mode == visual_block_mode then
+    motion = 'V'
+  elseif visual_mode ~= 'V' and supports_block_comment(visual_mode) then
+    comment_type = 'blockwise'
   end
 
-  if in_visual_mode() then
-    vim.api.nvim_feedkeys(esc, 'nx', false)
-  end
-
-  require('Comment.api').toggle[comment_type](visual_mode)
+  require('Comment.api').toggle[comment_type](motion)
 end
 
 function M.select_comment(inside)
   refresh_treesitter()
 
-  local selection = get_embedded_textobj_selection(inside) or get_default_textobj_selection(inside)
+  local selection = get_comment_textobj_selection(inside) or get_default_textobj_selection(inside)
   if not selection then
     return
   end
