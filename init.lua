@@ -89,6 +89,9 @@ end
 -- Load utility functions
 require('user.util')
 
+-- C/C++ printf highlighting
+require('user.printf_highlight').setup()
+
 -- Fcitx input method switching (skip if fcitx-remote is not installed)
 if vim.fn.executable('fcitx-remote') == 1 then
   local fcitx_status = ""
