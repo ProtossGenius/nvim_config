@@ -254,3 +254,88 @@ vim.api.nvim_create_autocmd("FileType", {
     end, { buffer = true, desc = 'Expand macro' })
   end,
 })
+
+-- Dirvish explorer helpers
+local function dirvish_run_command()
+  local file_path = vim.fn.getline('.')
+  if file_path == '' then return end
+  
+  local clean_path = file_path
+  if clean_path:sub(-1) == '/' then
+    clean_path = clean_path:sub(1, -2)
+  end
+
+  local cmd = vim.fn.input({
+    prompt = 'Shell command: ',
+    default = '',
+    completion = 'shellcmd',
+  })
+  
+  if cmd == '' then return end
+  
+  local final_cmd
+  if cmd:find('%%') then
+    final_cmd = cmd:gsub('%%', vim.fn.shellescape(clean_path))
+  else
+    final_cmd = cmd .. ' ' .. vim.fn.shellescape(clean_path)
+  end
+  
+  local dir = vim.fn.expand('%:p')
+  
+  vim.cmd('split')
+  local new_buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(new_buf)
+  vim.fn.termopen(final_cmd, { cwd = dir })
+  vim.cmd('startinsert')
+end
+
+local function dirvish_rename()
+  local old_path = vim.fn.getline('.')
+  if old_path == '' then return end
+  
+  local is_directory = old_path:sub(-1) == '/'
+  local clean_old_path = is_directory and old_path:sub(1, -2) or old_path
+
+  local old_name = vim.fn.fnamemodify(clean_old_path, ':t')
+  local new_name = vim.fn.input('Rename ' .. old_name .. ' to: ', old_name)
+  if new_name == '' or new_name == old_name then
+    return
+  end
+
+  local dir = vim.fn.fnamemodify(clean_old_path, ':h')
+  local new_path = dir .. '/' .. new_name
+  if is_directory then
+    new_path = new_path .. '/'
+  end
+
+  local success, err = os.rename(clean_old_path, is_directory and new_path:sub(1, -2) or new_path)
+  if not success then
+    vim.notify('Rename failed: ' .. tostring(err), vim.log.levels.ERROR)
+    return
+  end
+
+  local old_bufnr = vim.fn.bufnr(clean_old_path)
+  if old_bufnr ~= -1 then
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(win) == old_bufnr then
+        vim.api.nvim_win_call(win, function()
+          vim.cmd('edit ' .. vim.fn.fnameescape(new_path))
+        end)
+      end
+    end
+    vim.api.nvim_buf_delete(old_bufnr, { force = true })
+  end
+
+  vim.cmd('Dirvish %')
+  vim.notify('Successfully renamed ' .. old_name .. ' to ' .. new_name, vim.log.levels.INFO)
+end
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "dirvish",
+  callback = function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    vim.keymap.set('n', 'x', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Run shell command' })
+    vim.keymap.set('n', '!', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Run shell command' })
+    vim.keymap.set('n', 'r', dirvish_rename, { buffer = bufnr, silent = true, desc = 'Rename file' })
+  end,
+})

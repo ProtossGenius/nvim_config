@@ -130,6 +130,12 @@ return {
           '!.git',
           '--glob',
           '!.git/**',
+          '--glob',
+          '!target',
+          '--glob',
+          '!target/**',
+          '--glob',
+          '!*.class',
         }
 
         for _, ignore_file in ipairs(existing_ignore_files()) do

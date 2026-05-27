@@ -89,6 +89,12 @@ end
 -- Load utility functions
 require('user.util')
 
+-- Load file templates boilerplate generator
+require('user.templates').setup()
+
+-- Override global selection UI with premium floating menu
+vim.ui.select = require('user.select').select
+
 -- C/C++ printf highlighting
 require('user.printf_highlight').setup()
 

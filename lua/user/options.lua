@@ -45,3 +45,6 @@ opt.whichwrap:append('<,>,[,],h,l')
 -- Performance
 opt.updatetime = 250 -- Faster updates (e.g., for git signs)
 opt.undofile = true -- Persistent undo
+
+-- Spring Boot LSP tools toggle (disabled by default to avoid slow startup & unnecessary network requests)
+vim.g.enable_spring_boot_tools = false

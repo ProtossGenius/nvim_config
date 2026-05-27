@@ -471,6 +471,10 @@ end
 
 function M.java_setup_config()
   local current = get_state()
+  local enable_spring_boot = false
+  if vim.g.enable_spring_boot_tools ~= nil then
+    enable_spring_boot = vim.g.enable_spring_boot_tools
+  end
   return {
     jdtls = {
       version = current.launcher.jdtls_version,
@@ -481,6 +485,9 @@ function M.java_setup_config()
     },
     lombok = {
       enable = true,
+    },
+    spring_boot_tools = {
+      enable = enable_spring_boot,
     },
   }
 end

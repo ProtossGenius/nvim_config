@@ -1,0 +1,127 @@
+local M = {}
+
+function M.select(items, opts, on_choice)
+  if not items or #items == 0 then
+    on_choice(nil, nil)
+    return
+  end
+
+  opts = opts or {}
+  local prompt = opts.prompt or "Select Action"
+  local format_item = opts.format_item or function(item)
+    return type(item) == "string" and item or vim.inspect(item)
+  end
+
+  -- Create a scratch buffer
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+  vim.api.nvim_buf_set_option(buf, "swapfile", false)
+  vim.api.nvim_buf_set_option(buf, "modifiable", true)
+
+  -- Format lines
+  local lines = {}
+  for i, item in ipairs(items) do
+    table.insert(lines, string.format(" %d. %s", i, format_item(item)))
+  end
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(buf, "readonly", true)
+
+  -- Calculate dimensions
+  local max_line_len = 0
+  for _, line in ipairs(lines) do
+    max_line_len = math.max(max_line_len, vim.fn.strdisplaywidth(line))
+  end
+  local width = math.max(60, max_line_len + 4)
+  width = math.min(width, vim.o.columns - 4)
+  local height = math.min(#items, vim.o.lines - 4)
+
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+
+  local win_opts = {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    title = " " .. prompt .. " ",
+    title_pos = "center",
+    footer = " [0-9]: Jump  <BS>: Back  <CR>: Run  q: Exit ",
+    footer_pos = "center",
+  }
+
+  local win = vim.api.nvim_open_win(buf, true, win_opts)
+  vim.api.nvim_win_set_option(win, "cursorline", true)
+  vim.api.nvim_win_set_option(win, "wrap", false)
+
+  local typed_number = ""
+  local closed = false
+
+  local function close()
+    if closed then return end
+    closed = true
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end
+  end
+
+  local function select_current()
+    if closed then return end
+    local line = vim.api.nvim_win_get_cursor(win)[1]
+    close()
+    on_choice(items[line], line)
+  end
+
+  local function abort()
+    close()
+    on_choice(nil, nil)
+  end
+
+  local function update_cursor()
+    local target = tonumber(typed_number)
+    if target and target >= 1 and target <= #items then
+      vim.api.nvim_win_set_cursor(win, { target, 0 })
+    end
+  end
+
+  -- Bind number keys 0-9
+  for i = 0, 9 do
+    vim.keymap.set("n", tostring(i), function()
+      typed_number = typed_number .. tostring(i)
+      update_cursor()
+    end, { buffer = buf, silent = true })
+  end
+
+  -- Bind Backspace
+  vim.keymap.set("n", "<BS>", function()
+    if #typed_number > 0 then
+      typed_number = typed_number:sub(1, -2)
+    end
+    local target = tonumber(typed_number) or 1
+    if target >= 1 and target <= #items then
+      vim.api.nvim_win_set_cursor(win, { target, 0 })
+    end
+  end, { buffer = buf, silent = true })
+
+  -- Bind Enter
+  vim.keymap.set("n", "<CR>", select_current, { buffer = buf, silent = true })
+
+  -- Bind q
+  vim.keymap.set("n", "q", abort, { buffer = buf, silent = true })
+
+  -- Autocmd to handle closing when buffer is left
+  vim.api.nvim_create_autocmd("BufLeave", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      close()
+    end,
+  })
+end
+
+return M

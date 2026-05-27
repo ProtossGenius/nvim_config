@@ -23,6 +23,52 @@
 
 视觉模式下的 leader 提示也已经显式注册，像选中文本后使用 `SPC o t` 时，会直接显示 `Translate selection with Ollama`，不再退化成 `1+ mappings`。
 
+## 项目结构说明 (Project Structure)
+
+本配置是基于 Lua 的模块化 Neovim 配置，核心结构如下，便于未来快速了解和二次开发：
+
+- [init.lua](file:///Users/suremoon/.config/nvim/init.lua)：配置的主入口文件，负责加载核心配置模块、全局选项及第三方插件。
+- [lua/user/options.lua](file:///Users/suremoon/.config/nvim/lua/user/options.lua)：Neovim 核心选项与全局变量配置（包含 Spring Boot LSP 开关等）。
+- [lua/user/keymaps.lua](file:///Users/suremoon/.config/nvim/lua/user/keymaps.lua)：全局快捷键映射（包含窗口导航、终端切换、C/C++ 宏展开以及 **Dirvish 快捷键**）。
+- [lua/user/plugins.lua](file:///Users/suremoon/.config/nvim/lua/user/plugins.lua)：基于 `lazy.nvim` 的插件定义与各自的 setup 配置（包含 **Telescope 搜索过滤**）。
+- [lua/user/java.lua](file:///Users/suremoon/.config/nvim/lua/user/java.lua)：Java 相关的高级集成，处理 JDTLS 配置、Lombok 与 Mapper/XML 配对跳转。
+- [lua/user/lsp.lua](file:///Users/suremoon/.config/nvim/lua/user/lsp.lua)：LSP 客户端挂载（`on_attach`）与标准语言特性的按键绑定。
+- [lua/user/templates.lua](file:///Users/suremoon/.config/nvim/lua/user/templates.lua) **[NEW]**：自动化模板引擎，在新文件创建时自动填充标准模板体。
+- [lua/user/select.lua](file:///Users/suremoon/.config/nvim/lua/user/select.lua) **[NEW]**：高质感悬浮式全局选择菜单，深度定制 `vim.ui.select` 交互体验。
+
+---
+
+## 新增功能与用法 (New Features & Usage)
+
+配置近期新增了以下 5 大核心功能与性能优化：
+
+### 1. 新建代码文件自动填充模板
+在新创代码文件时，会自动触发 `BufNewFile` 钩子生成对应语言的模板文件体：
+- **支持语言**：Java, Go, Python, Rust, Shell (`sh`/`bash`), C, C++, JS/TS, HTML。
+- **Java 自动包解析**：创建 Java 文件时，会智能向上解析 `src/main/java` 等目录，自动生成正确的 `package com.xxx;` 包声明并匹配类名。
+- **创作者注释**：文件头部会自动生成作者和当前时间。作者查找优先级为：`vim.g.file_author` &rarr; `git config user.name` &rarr; 系统主机 `$USER` 变量。
+
+### 2. Spring Boot LSP 启动速度优化
+- **背景**：默认开启 Spring Boot LSP 会导致每次启动都通过网络请求 `spring.io/projects` 抓取数据或进行遥测，从而拖慢 LSP 启动速度，在弱网/离线环境下尤为严重。
+- **优化**：在 `options.lua` 中默认配置了 `vim.g.enable_spring_boot_tools = false`。这将在保证标准 Java 特性（定义跳转、自动补全、Lombok 等）完整可用的前提下，**跳过**请求 `spring.io` 的过程，大幅提升打开 Java 时的 LSP 启动速度。
+- **手动开启**：如果需要 Spring 相关的属性/注解高级补全，可以在 `options.lua` 中将该变量改为 `true`。
+
+### 3. Telescope 搜索文件排除二进制 class
+- **快捷键**：`<C-p>`
+- **优化**：在 Telescope 搜索文件的参数中，显式加入了排除 glob (`!target`, `!target/**`, `!*.class`)。这可确保在 LSP 编译项目并生成 `.class` 字节码文件到 `target` 目录后，搜索列表中不会被大量编译产生的垃圾文件所充斥。
+
+### 4. Dirvish 列表页实用工具与快捷键
+使用 `-` 键进入目录列表（Dirvish 文件列表页）后，新增了以下两个高效率本地命令：
+- **快速执行终端命令 (`x` 或 `!`)**：在当前选中的文件上按 `x` 或 `!`，会在下方打开输入框，且自带 **Shell 终端命令补全** 体验。支持使用 `%` 代表当前文件路径。输入指令后会在切分终端中实时执行。
+- **智能重命名 (`r`)**：在选中的文件/目录上按 `r` 并输入新名字，即可在磁盘重命名。**最重要地**，它会自动查找当前 Neovim 中是否已打开该文件的旧缓存 buffer，若是，则自动将其在所有窗口中迁移到新命名的文件，并**完美安全地关闭和销毁（wipeout）旧 buffer**，杜绝文件不同步的问题。
+
+### 5. 高端悬浮式 LSP Code Action 选择界面
+- **快捷键**：`ff` 或 `<leader>la` （触发 LSP 的 code action 动作）
+- **优化**：完全取代了粗糙的终端式选项卡，改为弹出置中的圆角悬浮框，带有漂亮的边框、高亮光标行和底部状态栏说明：
+  - **数字直接跳转**：支持按下数字键 `0-9` 直接跳转对应行（例如输入 `1` 跳转第一行，若再输入 `5` 且存在该选项，则会智能组合输入为 `15` 并自动跳到第 15 行）。
+  - **退格回滚 (`<BS>`)**：输入错误时按退格键能立刻删除上一位数字，并退回原选项位置。
+  - **运行与退出**：选中后直接按 `<CR>` (回车) 执行该 action；任何时候按 `q` 退出悬浮框且不进行任何操作。
+
 ## 打包
 
 运行仓库根目录下的 `./package_nvim.sh` 会生成一个自解压安装脚本 `target/install.sh`。
