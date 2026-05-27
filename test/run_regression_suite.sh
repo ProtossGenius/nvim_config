@@ -14,6 +14,7 @@ echo "==> startup smoke"
 (cd "$ROOT" && nvim --headless '+qa')
 
 run_spec "test/commenting_spec.lua"
+run_spec "test/lsp_keymaps_spec.lua"
 run_spec "test/select_spec.lua"
 run_spec "test/file_actions_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
