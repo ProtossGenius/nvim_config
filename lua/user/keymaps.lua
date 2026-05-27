@@ -317,6 +317,13 @@ local function dirvish_delete()
 end
 
 local function dirvish_create()
+  local function is_absolute_path(path)
+    return path:match('^/') ~= nil
+      or path:match('^%a:[/\\]') ~= nil
+      or path:match('^//') ~= nil
+      or path:match('^\\\\') ~= nil
+  end
+
   local dir = vim.fs.normalize(vim.fn.expand('%:p'))
   local default_name = vim.fn.input('Create file: ', '', 'file')
   if default_name == '' then
@@ -324,7 +331,7 @@ local function dirvish_create()
   end
 
   local target_path = default_name
-  if not vim.fs.isabs(target_path) then
+  if not is_absolute_path(target_path) then
     target_path = vim.fs.joinpath(dir, target_path)
   end
 

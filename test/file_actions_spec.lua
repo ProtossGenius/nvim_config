@@ -40,6 +40,21 @@ support.expect_equal('dirvish leader br mapping desc', vim.fn.maparg('<leader>br
 support.expect_equal('dirvish leader bd mapping desc', vim.fn.maparg('<leader>bd', 'n', false, true).desc, 'Buffer: Delete selected file from disk')
 support.expect_equal('dirvish delete mapping desc', vim.fn.maparg('D', 'n', false, true).desc, 'Delete file from disk')
 
+local original_input = vim.fn.input
+vim.fn.input = function()
+  return 'nested/from-dirvish.py'
+end
+vim.fn.maparg('a', 'n', false, true).callback()
+vim.fn.input = original_input
+
+local created_from_dirvish = vim.fs.normalize(dirvish_root .. '/nested/from-dirvish.py')
+support.expect_true('dirvish create mapping creates file', vim.uv.fs_stat(created_from_dirvish) ~= nil)
+support.expect_equal('dirvish create mapping opens file', vim.api.nvim_buf_get_name(0), created_from_dirvish)
+local dirvish_created_lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+support.expect_equal('dirvish create mapping applies template header', dirvish_created_lines[1], '# -*- coding: utf-8 -*-')
+support.expect_equal('dirvish create mapping applies template body', dirvish_created_lines[5], 'def main():')
+support.expect_equal('dirvish create mapping saves template to disk', vim.fn.readfile(created_from_dirvish)[1], '# -*- coding: utf-8 -*-')
+
 vim.cmd('bdelete!')
 vim.fn.delete(temp_root, 'rf')
 

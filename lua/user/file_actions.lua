@@ -324,16 +324,23 @@ function M.create_path(path, opts)
     return false
   end
 
-  local ok, err = pcall(vim.fn.writefile, {}, target_path)
-  if not ok then
-    vim.notify('Create failed: ' .. tostring(err), vim.log.levels.ERROR)
-    return false
-  end
-
   refresh_callback(opts)
 
   if opts.open_after_create then
     vim.cmd((opts.open_cmd or 'edit') .. ' ' .. vim.fn.fnameescape(target_path))
+    if opts.write_after_open ~= false and not fs_stat(target_path) then
+      local ok, err = pcall(vim.cmd, 'silent write')
+      if not ok then
+        vim.notify('Create failed: ' .. tostring(err), vim.log.levels.ERROR)
+        return false
+      end
+    end
+  else
+    local ok, err = pcall(vim.fn.writefile, {}, target_path)
+    if not ok then
+      vim.notify('Create failed: ' .. tostring(err), vim.log.levels.ERROR)
+      return false
+    end
   end
 
   vim.notify('Created ' .. vim.fn.fnamemodify(target_path, ':t'), vim.log.levels.INFO)
