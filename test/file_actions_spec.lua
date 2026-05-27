@@ -7,6 +7,7 @@ temp_root = vim.uv.fs_realpath(temp_root) or vim.fs.normalize(temp_root)
 
 local original_path = vim.fs.normalize(temp_root .. '/sample.txt')
 local renamed_path = vim.fs.normalize(temp_root .. '/renamed.txt')
+local created_path = vim.fs.normalize(temp_root .. '/created.txt')
 vim.fn.writefile({ 'alpha', 'beta' }, original_path)
 
 vim.cmd('edit ' .. vim.fn.fnameescape(original_path))
@@ -22,6 +23,8 @@ support.expect_true('file action delete succeeds', file_actions.delete_path(rena
 support.expect_true('file action deleted file removed from disk', vim.uv.fs_stat(renamed_path) == nil)
 support.expect_true('file action buffer retained after delete', vim.api.nvim_buf_is_valid(renamed_buf))
 support.expect_equal('file action buffer name retained after delete', vim.api.nvim_buf_get_name(renamed_buf), renamed_path)
+support.expect_true('file action create succeeds', file_actions.create_path(created_path))
+support.expect_true('file action created file exists', vim.uv.fs_stat(created_path) ~= nil)
 
 local dirvish_root = vim.fs.normalize(temp_root .. '/dirvish')
 vim.fn.mkdir(dirvish_root, 'p')
@@ -30,6 +33,8 @@ vim.cmd('Dirvish ' .. vim.fn.fnameescape(dirvish_root))
 vim.wait(100)
 
 support.expect_equal('dirvish filetype', vim.bo.filetype, 'dirvish')
+support.expect_equal('dirvish create mapping desc', vim.fn.maparg('a', 'n', false, true).desc, 'Create file')
+support.expect_equal('dirvish leader ba mapping desc', vim.fn.maparg('<leader>ba', 'n', false, true).desc, 'Buffer: Create file')
 support.expect_equal('dirvish leader bx mapping desc', vim.fn.maparg('<leader>bx', 'n', false, true).desc, 'Buffer: Run shell command on selected file')
 support.expect_equal('dirvish leader br mapping desc', vim.fn.maparg('<leader>br', 'n', false, true).desc, 'Buffer: Rename selected file')
 support.expect_equal('dirvish leader bd mapping desc', vim.fn.maparg('<leader>bd', 'n', false, true).desc, 'Buffer: Delete selected file from disk')

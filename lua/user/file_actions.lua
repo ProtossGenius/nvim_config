@@ -300,6 +300,46 @@ local function refresh_callback(opts)
   end
 end
 
+function M.create_path(path, opts)
+  opts = opts or {}
+
+  local target_path = normalize_path(path)
+  if not target_path then
+    vim.notify('Invalid create target: ' .. tostring(path), vim.log.levels.ERROR)
+    return false
+  end
+
+  if fs_stat(target_path) then
+    vim.notify('Create failed: target already exists: ' .. vim.fn.fnamemodify(target_path, ':t'), vim.log.levels.ERROR)
+    return false
+  end
+
+  local parent_dir = vim.fn.fnamemodify(target_path, ':h')
+  if parent_dir == '' or parent_dir == '.' then
+    parent_dir = vim.fn.getcwd()
+  end
+
+  if vim.fn.mkdir(parent_dir, 'p') ~= 1 and not fs_stat(parent_dir) then
+    vim.notify('Create failed: could not create parent directory: ' .. parent_dir, vim.log.levels.ERROR)
+    return false
+  end
+
+  local ok, err = pcall(vim.fn.writefile, {}, target_path)
+  if not ok then
+    vim.notify('Create failed: ' .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+
+  refresh_callback(opts)
+
+  if opts.open_after_create then
+    vim.cmd((opts.open_cmd or 'edit') .. ' ' .. vim.fn.fnameescape(target_path))
+  end
+
+  vim.notify('Created ' .. vim.fn.fnamemodify(target_path, ':t'), vim.log.levels.INFO)
+  return true
+end
+
 function M.rename_path(path, opts)
   opts = opts or {}
 

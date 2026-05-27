@@ -20,7 +20,7 @@ function M.select(items, opts, on_choice)
   vim.api.nvim_buf_set_option(buf, "swapfile", false)
   vim.api.nvim_buf_set_option(buf, "modifiable", true)
 
-  local status_line = " Selected: 1 "
+  local status_line = " Input: "
   local first_item_line = 2
   local lines = { status_line }
   for i, item in ipairs(items) do
@@ -87,11 +87,6 @@ function M.select(items, opts, on_choice)
     on_choice(nil, nil)
   end
 
-  local function current_index()
-    local line = vim.api.nvim_win_get_cursor(win)[1]
-    return math.min(math.max(line - 1, 1), #items)
-  end
-
   local function render_status()
     if closed or not vim.api.nvim_buf_is_valid(buf) then
       return
@@ -104,8 +99,7 @@ function M.select(items, opts, on_choice)
       end
     end
 
-    local selected = tostring(current_index())
-    local text = " Selected: " .. selected .. " "
+    local text = " Input: " .. typed_number
     local was_readonly = vim.api.nvim_buf_get_option(buf, "readonly")
 
     vim.api.nvim_buf_set_option(buf, "modifiable", true)
@@ -114,11 +108,13 @@ function M.select(items, opts, on_choice)
     vim.api.nvim_buf_set_option(buf, "modifiable", false)
     vim.api.nvim_buf_set_option(buf, "readonly", was_readonly)
 
-    local label_width = #(" Selected: ")
+    local label_width = #(" Input: ")
 
     vim.api.nvim_buf_clear_namespace(buf, ns, 0, 1)
     vim.api.nvim_buf_add_highlight(buf, ns, "Title", 0, 0, #text)
-    vim.api.nvim_buf_add_highlight(buf, ns, status_hl, 0, label_width, label_width + #selected)
+    if #typed_number > 0 then
+      vim.api.nvim_buf_add_highlight(buf, ns, status_hl, 0, label_width, label_width + #typed_number)
+    end
   end
 
   local function update_cursor()
@@ -142,8 +138,8 @@ function M.select(items, opts, on_choice)
     if #typed_number > 0 then
       typed_number = typed_number:sub(1, -2)
     end
-    local target = tonumber(typed_number) or 1
-    if target >= 1 and target <= #items then
+    local target = tonumber(typed_number)
+    if target and target >= 1 and target <= #items then
       vim.api.nvim_win_set_cursor(win, { target + 1, 0 })
     end
     render_status()
@@ -174,10 +170,6 @@ function M.select(items, opts, on_choice)
     callback = function()
       close()
     end,
-  })
-  vim.api.nvim_create_autocmd("CursorMoved", {
-    buffer = buf,
-    callback = render_status,
   })
 end
 

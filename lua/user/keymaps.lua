@@ -316,14 +316,36 @@ local function dirvish_delete()
   })
 end
 
+local function dirvish_create()
+  local dir = vim.fs.normalize(vim.fn.expand('%:p'))
+  local default_name = vim.fn.input('Create file: ', '', 'file')
+  if default_name == '' then
+    return
+  end
+
+  local target_path = default_name
+  if not vim.fs.isabs(target_path) then
+    target_path = vim.fs.joinpath(dir, target_path)
+  end
+
+  file_actions.create_path(target_path, {
+    refresh = function()
+      vim.cmd('Dirvish ' .. vim.fn.fnameescape(dir))
+    end,
+    open_after_create = true,
+  })
+end
+
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "dirvish",
   callback = function()
     local bufnr = vim.api.nvim_get_current_buf()
+    vim.keymap.set('n', 'a', dirvish_create, { buffer = bufnr, silent = true, desc = 'Create file' })
     vim.keymap.set('n', 'x', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Run shell command' })
     vim.keymap.set('n', '!', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Run shell command' })
     vim.keymap.set('n', 'r', dirvish_rename, { buffer = bufnr, silent = true, desc = 'Rename file' })
     vim.keymap.set('n', 'D', dirvish_delete, { buffer = bufnr, silent = true, desc = 'Delete file from disk' })
+    vim.keymap.set('n', '<leader>ba', dirvish_create, { buffer = bufnr, silent = true, desc = 'Buffer: Create file' })
     vim.keymap.set('n', '<leader>bx', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Buffer: Run shell command on selected file' })
     vim.keymap.set('n', '<leader>br', dirvish_rename, { buffer = bufnr, silent = true, desc = 'Buffer: Rename selected file' })
     vim.keymap.set('n', '<leader>bd', dirvish_delete, { buffer = bufnr, silent = true, desc = 'Buffer: Delete selected file from disk' })
