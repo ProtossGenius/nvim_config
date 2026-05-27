@@ -35,12 +35,14 @@
 - [lua/user/lsp.lua](file:///Users/suremoon/.config/nvim/lua/user/lsp.lua)：LSP 客户端挂载（`on_attach`）与标准语言特性的按键绑定。
 - [lua/user/templates.lua](file:///Users/suremoon/.config/nvim/lua/user/templates.lua) **[NEW]**：自动化模板引擎，在新文件创建时自动填充标准模板体。
 - [lua/user/select.lua](file:///Users/suremoon/.config/nvim/lua/user/select.lua) **[NEW]**：高质感悬浮式全局选择菜单，深度定制 `vim.ui.select` 交互体验。
+- [lua/user/printf_highlight.lua](file:///Users/suremoon/.config/nvim/lua/user/printf_highlight.lua)：跨语言占位符/参数联动高亮，支持 printf 风格与 Java / Rust 的 `{}` 风格格式串。
+- [lua/user/file_actions.lua](file:///Users/suremoon/.config/nvim/lua/user/file_actions.lua) **[NEW]**：统一封装文件重命名/删除动作，供当前 buffer 与 Dirvish 文件列表复用。
 
 ---
 
 ## 新增功能与用法 (New Features & Usage)
 
-配置近期新增了以下 5 大核心功能与性能优化：
+配置近期新增了以下 7 大核心功能与性能优化：
 
 ### 1. 新建代码文件自动填充模板
 在新创代码文件时，会自动触发 `BufNewFile` 钩子生成对应语言的模板文件体：
@@ -59,15 +61,40 @@
 
 ### 4. Dirvish 列表页实用工具与快捷键
 使用 `-` 键进入目录列表（Dirvish 文件列表页）后，新增了以下两个高效率本地命令：
-- **快速执行终端命令 (`x` 或 `!`)**：在当前选中的文件上按 `x` 或 `!`，会在下方打开输入框，且自带 **Shell 终端命令补全** 体验。支持使用 `%` 代表当前文件路径。输入指令后会在切分终端中实时执行。
-- **智能重命名 (`r`)**：在选中的文件/目录上按 `r` 并输入新名字，即可在磁盘重命名。**最重要地**，它会自动查找当前 Neovim 中是否已打开该文件的旧缓存 buffer，若是，则自动将其在所有窗口中迁移到新命名的文件，并**完美安全地关闭和销毁（wipeout）旧 buffer**，杜绝文件不同步的问题。
+- **快速执行终端命令 (`x` / `!` / `SPC b x`)**：在当前选中的文件上执行 shell 命令，会在下方打开输入框，且自带 **Shell 终端命令补全** 体验。支持使用 `%` 代表当前文件路径。输入指令后会在切分终端中实时执行。
+- **智能重命名 (`r` 或 `SPC b r`)**：在选中的文件/目录上重命名时，会保留 Vim 里已打开的 buffer；若目标是 Java 文件，则优先走 JDTLS 的文件重构流程，连同类名与引用一起更新。
+- **删除文件 (`D` 或 `SPC b d`)**：可直接删除当前选中的文件或目录；若该文件已经在 Neovim 中打开，其 buffer 会继续保留，不会被自动 wipe 掉。
 
 ### 5. 高端悬浮式 LSP Code Action 选择界面
 - **快捷键**：`ff` 或 `<leader>la` （触发 LSP 的 code action 动作）
 - **优化**：完全取代了粗糙的终端式选项卡，改为弹出置中的圆角悬浮框，带有漂亮的边框、高亮光标行和底部状态栏说明：
   - **数字直接跳转**：支持按下数字键 `0-9` 直接跳转对应行（例如输入 `1` 跳转第一行，若再输入 `5` 且存在该选项，则会智能组合输入为 `15` 并自动跳到第 15 行）。
+  - **顶部红色选中提示**：浮窗顶部会显眼显示当前选中的序号，并用红色高亮当前编号。
   - **退格回滚 (`<BS>`)**：输入错误时按退格键能立刻删除上一位数字，并退回原选项位置。
-  - **运行与退出**：选中后直接按 `<CR>` (回车) 执行该 action；任何时候按 `q` 退出悬浮框且不进行任何操作。
+  - **运行与退出**：选中后直接按 `<CR>` (回车) 执行该 action；任何时候按 `q` 或快速连按两次 `<Esc>` 退出悬浮框且不进行任何操作。
+
+### 6. 当前文件 buffer 的快捷编辑
+- **重命名 (`SPC b r`)**：对当前打开文件执行重命名；若是 Java 文件，会优先通过 LSP/JDTLS 做安全重构，而不是只改磁盘文件名。
+- **删除 (`SPC b d`)**：删除当前打开文件对应的磁盘文件，但保留当前 Vim buffer，便于继续查看、复制或手动另存。
+
+### 7. 跨语言格式串占位符联动高亮
+- **覆盖语言**：`c` / `cpp` / `java` / `lua` / `go` / `typescript` / `rust` / `python`。
+- **效果**：当光标停在格式串里的占位符上时，会联动高亮对应参数；当光标停在参数上时，也会反向高亮对应占位符。
+- **支持格式**：
+  - C / Lua / Go / TypeScript / Python / Java `String.format` / `printf` 一类的 `%s` / `%d` 风格；
+  - Java `@Slf4j` / `log.info("x {}", value)` 这类 SLF4J 的 `{}` 风格；
+  - Rust `println!` / `format!` / `panic!` 一类的 `{}` / `{:?}` 风格。
+
+## 测试
+
+运行仓库根目录下的 `./test/run_regression_suite.sh` 会执行当前配置的回归脚本，覆盖：
+
+- 无界面启动 smoke test；
+- 现有注释行为测试；
+- 悬浮 `vim.ui.select` 行为测试；
+- 当前 buffer / Dirvish 文件动作测试；
+- 跨语言格式串占位符高亮测试；
+- `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
 
 ## 打包
 

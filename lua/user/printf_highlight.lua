@@ -1,39 +1,49 @@
 -- [[ user.printf_highlight ]]
--- Treesitter-based C printf format placeholder and argument highlighting
+-- Treesitter-based printf/log placeholder and argument highlighting
 
 local M = {}
 
--- Namespace for highlighting
 local ns_id = vim.api.nvim_create_namespace('printf_highlight')
+M.ns_id = ns_id
 
--- Define our premium highlight groups linked to MatchParen by default
 vim.api.nvim_set_hl(0, 'PrintfPlaceholder', { link = 'MatchParen', default = true })
 vim.api.nvim_set_hl(0, 'PrintfArgument', { link = 'MatchParen', default = true })
 
--- Standard printf-like functions and the 0-based index of their format string argument
-local printf_funcs = {
-  printf = 0,
-  fprintf = 1,
-  sprintf = 1,
-  snprintf = 2,
-  dprintf = 1,
-  syslog = 1,
-  panic = 0,
+local supported_filetypes = {
+  c = { call_expression = true },
+  cpp = { call_expression = true },
+  go = { call_expression = true },
+  java = { method_invocation = true },
+  lua = { function_call = true },
+  python = { call = true },
+  rust = { macro_invocation = true },
+  javascript = { call_expression = true },
+  javascriptreact = { call_expression = true },
+  typescript = { call_expression = true },
+  typescriptreact = { call_expression = true },
 }
 
--- Walk up from the given node to find a 'call_expression' node
-local function get_call_expression(node)
-  local current = node
-  while current do
-    if current:type() == 'call_expression' then
-      return current
-    end
-    current = current:parent()
-  end
-  return nil
-end
+local arg_container_types = {
+  argument_list = true,
+  arguments = true,
+  token_tree = true,
+}
 
--- Helper to check if a cursor position is inside a treesitter node's range
+local string_node_types = {
+  concatenated_string = true,
+  interpreted_string_literal = true,
+  string = true,
+  string_literal = true,
+}
+
+local java_brace_methods = {
+  debug = true,
+  error = true,
+  info = true,
+  trace = true,
+  warn = true,
+}
+
 local function is_cursor_in_range(cursor_row, cursor_col, s_row, s_col, e_row, e_col)
   if cursor_row < s_row or cursor_row > e_row then
     return false
@@ -47,7 +57,6 @@ local function is_cursor_in_range(cursor_row, cursor_col, s_row, s_col, e_row, e
   return true
 end
 
--- Helper to convert 1-based byte offset in text to 0-based buffer (row, col)
 local function offset_to_pos(text, start_row, start_col, offset)
   local current_offset = 1
   local row = start_row
@@ -68,7 +77,6 @@ local function offset_to_pos(text, start_row, start_col, offset)
   return row, col
 end
 
--- Helper to convert 0-based buffer (row, col) to 1-based byte offset in text
 local function pos_to_offset(text, start_row, start_col, target_row, target_col)
   local current_offset = 1
   local row = start_row
@@ -93,285 +101,428 @@ local function pos_to_offset(text, start_row, start_col, target_row, target_col)
   return nil
 end
 
--- Parse format string to find all argument-consuming components (stars and specifiers)
--- Returns a list of placeholders with start_offset and end_offset relative to the inner string content
-local function parse_format_string(str)
-  local placeholders = {}
-  local i = 1
-  local len = #str
-
-  while i <= len do
-    local char = str:sub(i, i)
-    if char == '%' then
-      if str:sub(i + 1, i + 1) == '%' then
-        -- Escaped '%', skip it
-        i = i + 2
-      else
-        -- Found a potential placeholder!
-        local start_idx = i
-        i = i + 1
-
-        -- Parse flags: zero or more of: '-', '+', ' ', '#', '0', '\''
-        while i <= len and (str:sub(i, i):find("[-+ #0']")) do
-          i = i + 1
-        end
-
-        -- Parse width: [0-9]+ or '*'
-        if i <= len and str:sub(i, i) == '*' then
-          table.insert(placeholders, {
-            type = 'star',
-            start_offset = i,
-            end_offset = i,
-          })
-          i = i + 1
-        else
-          while i <= len and str:sub(i, i):find("[0-9]") do
-            i = i + 1
-          end
-        end
-
-        -- Parse precision: '.' followed by ([0-9]+ or '*')
-        if i <= len and str:sub(i, i) == '.' then
-          i = i + 1
-          if i <= len and str:sub(i, i) == '*' then
-            table.insert(placeholders, {
-              type = 'star',
-              start_offset = i,
-              end_offset = i,
-            })
-            i = i + 1
-          else
-            while i <= len and str:sub(i, i):find("[0-9]") do
-              i = i + 1
-            end
-          end
-        end
-
-        -- Parse length modifier: 'hh', 'h', 'l', 'll', 'j', 'z', 't', 'L', 'I64', 'I32'
-        if i <= len then
-          local two = str:sub(i, i + 1)
-          if two == 'hh' or two == 'll' or two == 'I64' or two == 'I32' then
-            i = i + 2
-          elseif str:sub(i, i):find("[hljztL]") then
-            i = i + 1
-          end
-        end
-
-        -- Parse specifier: one of: 'd', 'i', 'u', 'o', 'x', 'X', 'f', 'F', 'e', 'E', 'g', 'G', 'a', 'A', 'c', 's', 'p', 'n'
-        if i <= len then
-          local specifier = str:sub(i, i)
-          if specifier:find("[diuoxXfFeEgGaAcspn]") then
-            table.insert(placeholders, {
-              type = 'specifier',
-              start_offset = start_idx,
-              end_offset = i,
-              specifier = specifier,
-            })
-            i = i + 1
-          else
-            -- Backtrack and treat '%' as literal
-            i = start_idx + 1
-          end
-        else
-          i = start_idx + 1
-        end
-      end
-    else
-      i = i + 1
-    end
-  end
-  return placeholders
-end
-
--- Safely highlight a given buffer range (works across single or multiple lines)
 local function highlight_range(bufnr, s_row, s_col, e_row, e_col, hl_group)
   if s_row == e_row then
     vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, s_row, s_col, e_col)
-  else
-    -- Multi-line highlight
-    vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, s_row, s_col, -1)
-    for r = s_row + 1, e_row - 1 do
-      vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, r, 0, -1)
-    end
-    vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, e_row, 0, e_col)
+    return
+  end
+
+  vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, s_row, s_col, -1)
+  for row = s_row + 1, e_row - 1 do
+    vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, row, 0, -1)
+  end
+  vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, e_row, 0, e_col)
+end
+
+local function node_text(bufnr, start_row, start_col, end_row, end_col)
+  return table.concat(vim.api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {}), '\n')
+end
+
+local function get_current_node()
+  if vim.treesitter.get_node then
+    return vim.treesitter.get_node()
+  end
+
+  local ok, ts_utils = pcall(require, 'nvim-treesitter.ts_utils')
+  if ok then
+    return ts_utils.get_node_at_cursor()
   end
 end
 
--- Clear all highlights in the namespace
+local function get_call_expression(node, filetype)
+  local valid_types = supported_filetypes[filetype]
+  if not valid_types then
+    return nil
+  end
+
+  local current = node
+  while current do
+    if valid_types[current:type()] then
+      return current
+    end
+    current = current:parent()
+  end
+
+  return nil
+end
+
+local function get_argument_container(call_node)
+  for index = 0, call_node:named_child_count() - 1 do
+    local child = call_node:named_child(index)
+    if arg_container_types[child:type()] then
+      return child
+    end
+  end
+end
+
+local function get_arguments(arg_container)
+  local args = {}
+  for index = 0, arg_container:named_child_count() - 1 do
+    table.insert(args, arg_container:named_child(index))
+  end
+  return args
+end
+
+local function get_callee_text(call_node, arg_container, bufnr)
+  local call_start_row, call_start_col = call_node:range()
+  local arg_start_row, arg_start_col = arg_container:range()
+  local text = node_text(bufnr, call_start_row, call_start_col, arg_start_row, arg_start_col)
+  return vim.trim(text)
+end
+
+local function parse_percent_placeholders(str)
+  local placeholders = {}
+  local index = 1
+  local len = #str
+
+  while index <= len do
+    local char = str:sub(index, index)
+    if char ~= '%' then
+      index = index + 1
+    elseif str:sub(index + 1, index + 1) == '%' then
+      index = index + 2
+    else
+      local start_idx = index
+      index = index + 1
+
+      while index <= len and str:sub(index, index):find("[-+ #0']") do
+        index = index + 1
+      end
+
+      if str:sub(index, index) == '*' then
+        table.insert(placeholders, {
+          type = 'star',
+          start_offset = index,
+          end_offset = index,
+        })
+        index = index + 1
+      else
+        while index <= len and str:sub(index, index):find('[0-9]') do
+          index = index + 1
+        end
+      end
+
+      if str:sub(index, index) == '.' then
+        index = index + 1
+        if str:sub(index, index) == '*' then
+          table.insert(placeholders, {
+            type = 'star',
+            start_offset = index,
+            end_offset = index,
+          })
+          index = index + 1
+        else
+          while index <= len and str:sub(index, index):find('[0-9]') do
+            index = index + 1
+          end
+        end
+      end
+
+      if index <= len then
+        local two_chars = str:sub(index, index + 1)
+        if two_chars == 'hh' or two_chars == 'll' or two_chars == 'I64' or two_chars == 'I32' then
+          index = index + 2
+        elseif str:sub(index, index):find('[hljztL]') then
+          index = index + 1
+        end
+      end
+
+      if index <= len and str:sub(index, index):find('[diuoxXfFeEgGaAcspnqvTt%b]') then
+        table.insert(placeholders, {
+          type = 'specifier',
+          start_offset = start_idx,
+          end_offset = index,
+        })
+        index = index + 1
+      else
+        index = start_idx + 1
+      end
+    end
+  end
+
+  return placeholders
+end
+
+local function parse_brace_placeholders(str, opts)
+  opts = opts or {}
+  local placeholders = {}
+  local index = 1
+  local len = #str
+
+  while index <= len do
+    local char = str:sub(index, index)
+    local next_char = str:sub(index + 1, index + 1)
+    local prev_char = index > 1 and str:sub(index - 1, index - 1) or ''
+
+    if char == '{' and next_char == '{' then
+      index = index + 2
+    elseif char == '}' and next_char == '}' then
+      index = index + 2
+    elseif char == '{' and opts.slash_escape and prev_char == '\\' then
+      index = index + 1
+    elseif char == '{' then
+      local end_index = index + 1
+      while end_index <= len and str:sub(end_index, end_index) ~= '}' do
+        end_index = end_index + 1
+      end
+
+      if end_index <= len then
+        local placeholder_text = str:sub(index, end_index)
+        if not opts.empty_only or placeholder_text == '{}' then
+          table.insert(placeholders, {
+            type = 'brace',
+            start_offset = index,
+            end_offset = end_index,
+          })
+        end
+        index = end_index + 1
+      else
+        index = index + 1
+      end
+    else
+      index = index + 1
+    end
+  end
+
+  return placeholders
+end
+
+local function get_string_info(node, bufnr)
+  if not string_node_types[node:type()] then
+    return nil
+  end
+
+  local raw_text = vim.treesitter.get_node_text(node, bufnr)
+  local quote_start, quote_len, quote_end_len
+
+  if raw_text:sub(1, 1) == '`' and raw_text:sub(-1, -1) == '`' then
+    quote_start = 1
+    quote_len = 1
+    quote_end_len = 1
+  else
+    local prefix = raw_text:match('^[rRuUbBfF]*') or ''
+    local rest = raw_text:sub(#prefix + 1)
+
+    if rest:sub(1, 3) == '"""' and rest:sub(-3) == '"""' then
+      quote_start = #prefix + 1
+      quote_len = 3
+      quote_end_len = 3
+    elseif rest:sub(1, 3) == "'''" and rest:sub(-3) == "'''" then
+      quote_start = #prefix + 1
+      quote_len = 3
+      quote_end_len = 3
+    elseif (rest:sub(1, 1) == '"' or rest:sub(1, 1) == "'") and rest:sub(-1, -1) == rest:sub(1, 1) then
+      quote_start = #prefix + 1
+      quote_len = 1
+      quote_end_len = 1
+    end
+  end
+
+  if not quote_start then
+    return nil
+  end
+
+  local content_start = quote_start + quote_len
+  local content_end = #raw_text - quote_end_len
+  if content_end < content_start - 1 then
+    return nil
+  end
+
+  local start_row, start_col = node:range()
+  return {
+    content = raw_text:sub(content_start, content_end),
+    content_start_offset = content_start,
+    raw_text = raw_text,
+    start_col = start_col,
+    start_row = start_row,
+  }
+end
+
+local function contains_percent_placeholders(text)
+  return #parse_percent_placeholders(text) > 0
+end
+
+local function contains_brace_placeholders(text, opts)
+  return #parse_brace_placeholders(text, opts) > 0
+end
+
+local function is_java_brace_call(callee_text)
+  local method = callee_text:match('([%w_]+)$')
+  return method and java_brace_methods[method:lower()] or false
+end
+
+local function allow_percent_style(filetype, callee_text)
+  local lower = callee_text:lower()
+
+  if filetype == 'java' then
+    return lower:find('printf', 1, true) ~= nil or lower:find('format', 1, true) ~= nil
+  end
+
+  if filetype == 'javascript' or filetype == 'javascriptreact' or filetype == 'typescript' or filetype == 'typescriptreact' then
+    return lower:find('console.', 1, true) ~= nil
+      or lower:find('util.format', 1, true) ~= nil
+      or lower:find('printf', 1, true) ~= nil
+      or lower:find('format', 1, true) ~= nil
+  end
+
+  if filetype == 'lua' then
+    return lower == 'string.format' or lower:find('format', 1, true) ~= nil
+  end
+
+  if filetype == 'rust' then
+    return false
+  end
+
+  return true
+end
+
+local function brace_options(filetype, callee_text)
+  if filetype == 'rust' then
+    return {
+      allowed = true,
+      empty_only = false,
+      slash_escape = false,
+    }
+  end
+
+  if filetype == 'java' and is_java_brace_call(callee_text) then
+    return {
+      allowed = true,
+      empty_only = true,
+      slash_escape = true,
+    }
+  end
+
+  return { allowed = false }
+end
+
+local function resolve_format_call(bufnr, filetype, callee_text, args)
+  for index, arg in ipairs(args) do
+    local string_info = get_string_info(arg, bufnr)
+    if string_info then
+      local has_following_args = index < #args
+      if has_following_args and allow_percent_style(filetype, callee_text) and contains_percent_placeholders(string_info.content) then
+        return {
+          format_idx = index,
+          parser = parse_percent_placeholders,
+          parser_opts = nil,
+          string_info = string_info,
+        }
+      end
+
+      local brace_opts = brace_options(filetype, callee_text)
+      if has_following_args and brace_opts.allowed and contains_brace_placeholders(string_info.content, brace_opts) then
+        return {
+          format_idx = index,
+          parser = parse_brace_placeholders,
+          parser_opts = brace_opts,
+          string_info = string_info,
+        }
+      end
+    end
+  end
+end
+
 function M.clear_highlights(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr or 0) then
     vim.api.nvim_buf_clear_namespace(bufnr or 0, ns_id, 0, -1)
   end
 end
 
--- Core highlight update logic
 function M.update_highlights(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-  -- Clear previous highlights first
   M.clear_highlights(bufnr)
 
-  -- Get current cursor position (1-based row, 0-based col)
+  local filetype = vim.bo[bufnr].filetype
+  if not supported_filetypes[filetype] then
+    return
+  end
+
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local cursor_row = cursor_pos[1] - 1
   local cursor_col = cursor_pos[2]
-
-  -- Get treesitter node at cursor
-  local node = nil
-  if vim.treesitter.get_node then
-    node = vim.treesitter.get_node()
-  else
-    local ok, ts_utils = pcall(require, 'nvim-treesitter.ts_utils')
-    if ok then
-      node = ts_utils.get_node_at_cursor()
-    end
-  end
-
+  local node = get_current_node()
   if not node then
     return
   end
 
-  -- Find call expression ancestor
-  local call_expr = get_call_expression(node)
+  local call_expr = get_call_expression(node, filetype)
   if not call_expr then
     return
   end
 
-  -- Get function name
-  local func_node = call_expr:field('function')[1] or call_expr:child(0)
-  if not func_node then
-    return
-  end
-  local func_name = vim.treesitter.get_node_text(func_node, bufnr)
-
-  -- Find argument list child
-  local arg_list_node = nil
-  for i = 0, call_expr:child_count() - 1 do
-    local child = call_expr:child(i)
-    if child:type() == 'argument_list' then
-      arg_list_node = child
-      break
-    end
-  end
-
-  if not arg_list_node then
+  local arg_container = get_argument_container(call_expr)
+  if not arg_container then
     return
   end
 
-  -- Gather all arguments in the list
-  local args = {}
-  for i = 0, arg_list_node:named_child_count() - 1 do
-    table.insert(args, arg_list_node:named_child(i))
-  end
-
+  local args = get_arguments(arg_container)
   if #args == 0 then
     return
   end
 
-  -- Determine format string index (1-based for Lua)
-  local format_idx = nil
-  local known_idx = printf_funcs[func_name]
-  if known_idx then
-    format_idx = known_idx + 1
-  else
-    -- Heuristic fallback: search for the first string literal containing a '%' character
-    for i, arg in ipairs(args) do
-      local arg_type = arg:type()
-      if arg_type == 'string_literal' or arg_type == 'concatenated_string' then
-        local text = vim.treesitter.get_node_text(arg, bufnr)
-        if text:find('%%') then
-          format_idx = i
-          break
-        end
-      end
-    end
-
-    -- Ultimate fallback: just pick the first string literal argument
-    if not format_idx then
-      for i, arg in ipairs(args) do
-        local arg_type = arg:type()
-        if arg_type == 'string_literal' or arg_type == 'concatenated_string' then
-          format_idx = i
-          break
-        end
-      end
-    end
-  end
-
-  -- If no format string argument was found, or format_idx is out of range, stop
-  if not format_idx or format_idx > #args then
+  local callee_text = get_callee_text(call_expr, arg_container, bufnr)
+  if callee_text == '' then
     return
   end
 
-  local format_node = args[format_idx]
-  if format_node:type() ~= 'string_literal' then
+  local resolved = resolve_format_call(bufnr, filetype, callee_text, args)
+  if not resolved or resolved.format_idx > #args then
     return
   end
 
-  -- Get format string range and text
-  local f_start_row, f_start_col, f_end_row, f_end_col = format_node:range()
-  local format_text = vim.treesitter.get_node_text(format_node, bufnr)
-
-  -- Strip opening and closing quotes (standard C strings have " at start and end)
-  if format_text:sub(1, 1) ~= '"' or format_text:sub(-1, -1) ~= '"' then
-    return
-  end
-  local format_content = format_text:sub(2, -2)
-
-  -- Parse placeholders
-  local placeholders = parse_format_string(format_content)
+  local format_node = args[resolved.format_idx]
+  local string_info = resolved.string_info
+  local placeholders = resolved.parser(string_info.content, resolved.parser_opts)
   if #placeholders == 0 then
     return
   end
 
-  -- Separate arguments after the format string
+  local format_start_row, format_start_col, format_end_row, format_end_col = format_node:range()
   local arg_values = {}
-  for i = format_idx + 1, #args do
-    table.insert(arg_values, args[i])
+  for index = resolved.format_idx + 1, #args do
+    table.insert(arg_values, args[index])
   end
 
-  -- Symmetrically highlight based on cursor position
-  if is_cursor_in_range(cursor_row, cursor_col, f_start_row, f_start_col, f_end_row, f_end_col) then
-    -- Cursor is inside the format string. Find if it's on a placeholder.
-    local cursor_offset = pos_to_offset(format_text, f_start_row, f_start_col, cursor_row, cursor_col)
+  if is_cursor_in_range(cursor_row, cursor_col, format_start_row, format_start_col, format_end_row, format_end_col) then
+    local cursor_offset = pos_to_offset(string_info.raw_text, string_info.start_row, string_info.start_col, cursor_row, cursor_col)
     if not cursor_offset then
       return
     end
 
-    -- Offset inside format_content (subtract 1 for the leading quote)
-    local content_offset = cursor_offset - 1
+    local content_offset = cursor_offset - string_info.content_start_offset + 1
+    if content_offset < 1 then
+      return
+    end
 
-    for k, p in ipairs(placeholders) do
-      if content_offset >= p.start_offset and content_offset <= p.end_offset then
-        -- Cursor is on this placeholder!
-        -- Highlight the placeholder
-        local p_start_row, p_start_col = offset_to_pos(format_text, f_start_row, f_start_col, p.start_offset + 1)
-        local p_end_row, p_end_col = offset_to_pos(format_text, f_start_row, f_start_col, p.end_offset + 2)
+    for placeholder_index, placeholder in ipairs(placeholders) do
+      if content_offset >= placeholder.start_offset and content_offset <= placeholder.end_offset then
+        local placeholder_start_offset = string_info.content_start_offset + placeholder.start_offset - 1
+        local placeholder_end_offset = string_info.content_start_offset + placeholder.end_offset
+        local p_start_row, p_start_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_start_offset)
+        local p_end_row, p_end_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_end_offset)
         highlight_range(bufnr, p_start_row, p_start_col, p_end_row, p_end_col, 'PrintfPlaceholder')
 
-        -- Highlight corresponding argument (if exists)
-        local corresponding_arg = arg_values[k]
-        if corresponding_arg then
-          local a_start_row, a_start_col, a_end_row, a_end_col = corresponding_arg:range()
+        local arg_node = arg_values[placeholder_index]
+        if arg_node then
+          local a_start_row, a_start_col, a_end_row, a_end_col = arg_node:range()
           highlight_range(bufnr, a_start_row, a_start_col, a_end_row, a_end_col, 'PrintfArgument')
         end
         break
       end
     end
   else
-    -- Cursor is outside the format string. Check if it's inside any of the argument expressions.
-    for k, arg_node in ipairs(arg_values) do
+    for placeholder_index, arg_node in ipairs(arg_values) do
       local a_start_row, a_start_col, a_end_row, a_end_col = arg_node:range()
       if is_cursor_in_range(cursor_row, cursor_col, a_start_row, a_start_col, a_end_row, a_end_col) then
-        -- Cursor is on this argument!
-        -- Highlight the argument
         highlight_range(bufnr, a_start_row, a_start_col, a_end_row, a_end_col, 'PrintfArgument')
 
-        -- Highlight the corresponding placeholder (if exists)
-        local p = placeholders[k]
-        if p then
-          local p_start_row, p_start_col = offset_to_pos(format_text, f_start_row, f_start_col, p.start_offset + 1)
-          local p_end_row, p_end_col = offset_to_pos(format_text, f_start_row, f_start_col, p.end_offset + 2)
+        local placeholder = placeholders[placeholder_index]
+        if placeholder then
+          local placeholder_start_offset = string_info.content_start_offset + placeholder.start_offset - 1
+          local placeholder_end_offset = string_info.content_start_offset + placeholder.end_offset
+          local p_start_row, p_start_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_start_offset)
+          local p_end_row, p_end_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_end_offset)
           highlight_range(bufnr, p_start_row, p_start_col, p_end_row, p_end_col, 'PrintfPlaceholder')
         end
         break
@@ -380,13 +531,13 @@ function M.update_highlights(bufnr)
   end
 end
 
--- Initialize the plugin and register the autocommands
 function M.setup()
   local group = vim.api.nvim_create_augroup('PrintfHighlight', { clear = true })
+  local filetypes = vim.tbl_keys(supported_filetypes)
 
   vim.api.nvim_create_autocmd('FileType', {
     group = group,
-    pattern = { 'c', 'cpp' },
+    pattern = filetypes,
     callback = function(args)
       local bufnr = args.buf
       vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {

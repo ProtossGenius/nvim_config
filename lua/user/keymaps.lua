@@ -3,6 +3,7 @@
 
 local opts = { noremap = true, silent = true }
 local keymap = vim.keymap.set
+local file_actions = require('user.file_actions')
 
 local function leader_map(mode, lhs, rhs, desc)
   keymap(mode, lhs, rhs, vim.tbl_extend('force', opts, { desc = desc }))
@@ -110,6 +111,8 @@ leader_map('n', '<leader>fg', '<cmd>Telescope live_grep<cr>', 'Live Grep')
 leader_map('n', '<leader>fr', '<cmd>Telescope oldfiles<cr>', 'Find recent files')
 leader_map('n', '<leader>ft', '<cmd>Telescope tags<cr>', 'Find tags')
 leader_map('n', '<leader>pp', '<cmd>Telescope projects<cr>', 'Find projects')
+leader_map('n', '<leader>br', file_actions.rename_current_buffer, 'Buffer: Rename file')
+leader_map('n', '<leader>bd', file_actions.delete_current_buffer_file, 'Buffer: Delete file from disk')
 
 -- Terminal
 -- Terminal toggle (Alt-t)
@@ -292,42 +295,25 @@ end
 local function dirvish_rename()
   local old_path = vim.fn.getline('.')
   if old_path == '' then return end
-  
-  local is_directory = old_path:sub(-1) == '/'
-  local clean_old_path = is_directory and old_path:sub(1, -2) or old_path
 
-  local old_name = vim.fn.fnamemodify(clean_old_path, ':t')
-  local new_name = vim.fn.input('Rename ' .. old_name .. ' to: ', old_name)
-  if new_name == '' or new_name == old_name then
-    return
-  end
+  local clean_old_path = old_path:sub(-1) == '/' and old_path:sub(1, -2) or old_path
+  file_actions.rename_path(clean_old_path, {
+    refresh = function()
+      vim.cmd('Dirvish %')
+    end,
+  })
+end
 
-  local dir = vim.fn.fnamemodify(clean_old_path, ':h')
-  local new_path = dir .. '/' .. new_name
-  if is_directory then
-    new_path = new_path .. '/'
-  end
+local function dirvish_delete()
+  local target_path = vim.fn.getline('.')
+  if target_path == '' then return end
 
-  local success, err = os.rename(clean_old_path, is_directory and new_path:sub(1, -2) or new_path)
-  if not success then
-    vim.notify('Rename failed: ' .. tostring(err), vim.log.levels.ERROR)
-    return
-  end
-
-  local old_bufnr = vim.fn.bufnr(clean_old_path)
-  if old_bufnr ~= -1 then
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      if vim.api.nvim_win_get_buf(win) == old_bufnr then
-        vim.api.nvim_win_call(win, function()
-          vim.cmd('edit ' .. vim.fn.fnameescape(new_path))
-        end)
-      end
-    end
-    vim.api.nvim_buf_delete(old_bufnr, { force = true })
-  end
-
-  vim.cmd('Dirvish %')
-  vim.notify('Successfully renamed ' .. old_name .. ' to ' .. new_name, vim.log.levels.INFO)
+  local clean_target_path = target_path:sub(-1) == '/' and target_path:sub(1, -2) or target_path
+  file_actions.delete_path(clean_target_path, {
+    refresh = function()
+      vim.cmd('Dirvish %')
+    end,
+  })
 end
 
 vim.api.nvim_create_autocmd("FileType", {
@@ -337,5 +323,9 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set('n', 'x', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Run shell command' })
     vim.keymap.set('n', '!', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Run shell command' })
     vim.keymap.set('n', 'r', dirvish_rename, { buffer = bufnr, silent = true, desc = 'Rename file' })
+    vim.keymap.set('n', 'D', dirvish_delete, { buffer = bufnr, silent = true, desc = 'Delete file from disk' })
+    vim.keymap.set('n', '<leader>bx', dirvish_run_command, { buffer = bufnr, silent = true, desc = 'Buffer: Run shell command on selected file' })
+    vim.keymap.set('n', '<leader>br', dirvish_rename, { buffer = bufnr, silent = true, desc = 'Buffer: Rename selected file' })
+    vim.keymap.set('n', '<leader>bd', dirvish_delete, { buffer = bufnr, silent = true, desc = 'Buffer: Delete selected file from disk' })
   end,
 })
