@@ -1,1 +1,6 @@
 target/
+.nvim-dap.json
+test-projects/java17-spring-demo/.project
+test-projects/java17-spring-demo/.classpath
+test-projects/java17-spring-demo/.factorypath
+test-projects/java17-spring-demo/.settings/

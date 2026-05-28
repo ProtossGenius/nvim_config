@@ -105,9 +105,10 @@
 - **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置。
 - **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；`SPC d e` 首次打开时会自动生成一个详细模板。
 - **默认模板**：
-  - 默认给出 **按端口 attach** 的 Java 配置（`hostName` + `port`）；
+  - 默认给出一个最小的 **按端口 attach** Java 配置（`hostName` + `port`）；
   - 会尽量收集 Maven / Eclipse / main class / test class 信息，写入 `_detected`；
-  - 会给出几个简短的 snap：`launch`、`attach-port`、`test-class`，并在 value 里直接写上对应描述，方便复制改值。
+  - 在 `.nvim-dap.json` 的 `configurations` 里输入 `port` 或 `launch` 后按 `<Tab>`，会展开成对应 snippet；
+  - Java 调试依赖当前项目已有活动的 `jdtls`，所以先打开一个该项目里的 Java 文件，确认 `:LspInfo` 里有 `jdtls`，再启动调试。
 
 ## 测试
 

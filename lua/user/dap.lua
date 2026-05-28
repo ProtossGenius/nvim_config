@@ -4,6 +4,10 @@ local M = {}
 
 local CONFIG_FILENAME = '.nvim-dap.json'
 
+local function is_config_file(path)
+  return path and path ~= '' and vim.fs.basename(path) == CONFIG_FILENAME
+end
+
 local function pretty_json(value, indent)
   indent = indent or 0
   local prefix = string.rep('  ', indent)
@@ -173,53 +177,18 @@ end
 
 local function config_template(info)
   local project_name = default_project_name(info)
-  local main_class = info.java.mainClasses[1] or 'com.example.demo.DemoApplication'
-  local test_class = info.java.testClasses[1] or 'com.example.demo.service.UserServiceSmokeTest'
 
   return {
-    _desc = {
-      'Snaps: launch, attach-port, test-class.',
-      'Copy one snap into configurations, then replace the placeholder text values.',
-      'Default configuration below attaches to a running JVM debug port.',
-    },
+    _desc = 'Type port<Tab> or launch<Tab> inside configurations.',
     _detected = {
       root = info.root,
       maven = info.maven,
       eclipse = info.eclipse,
       java = info.java,
     },
-    snaps = {
-      launch = {
-        name = 'Launch name, e.g. demo-app',
-        type = 'java',
-        request = 'launch',
-        cwd = '${projectRoot}',
-        projectName = 'Project name, e.g. ' .. project_name,
-        mainClass = 'Main class, e.g. ' .. main_class,
-        args = {
-          'Args array, e.g. --spring.profiles.active=dev',
-        },
-      },
-      ['attach-port'] = {
-        name = 'Attach name, e.g. local-5005',
-        type = 'java',
-        request = 'attach',
-        hostName = 'Debug host, e.g. 127.0.0.1',
-        port = 'Debug port, e.g. 5005',
-        projectName = 'Project name, e.g. ' .. project_name,
-      },
-      ['test-class'] = {
-        name = 'Test name, e.g. smoke-test',
-        type = 'java',
-        request = 'launch',
-        cwd = '${projectRoot}',
-        projectName = 'Project name, e.g. ' .. project_name,
-        mainClass = 'Test class, e.g. ' .. test_class,
-      },
-    },
     configurations = {
       {
-        name = 'attach-port',
+        name = 'port',
         type = 'java',
         request = 'attach',
         hostName = '127.0.0.1',
@@ -263,8 +232,38 @@ local function decode_config(path)
   return decoded
 end
 
-local function placeholder_vars()
-  local path = project.path_from_buf(0) or ''
+local function source_context_buf(path_or_bufnr)
+  if type(path_or_bufnr) == 'number' then
+    local current_path = project.path_from_buf(path_or_bufnr) or ''
+    if current_path ~= '' and not is_config_file(current_path) then
+      return path_or_bufnr
+    end
+  end
+
+  local alternate = vim.fn.bufnr('#')
+  if alternate > 0 then
+    local alternate_path = project.path_from_buf(alternate) or ''
+    if alternate_path ~= '' and not is_config_file(alternate_path) then
+      return alternate
+    end
+  end
+
+  local root = project.root(path_or_bufnr)
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == '' then
+      local path = project.path_from_buf(bufnr) or ''
+      if path ~= '' and not is_config_file(path) and project.root(path) == root then
+        return bufnr
+      end
+    end
+  end
+
+  return type(path_or_bufnr) == 'number' and path_or_bufnr or 0
+end
+
+local function placeholder_vars(path_or_bufnr)
+  local source_bufnr = source_context_buf(path_or_bufnr)
+  local path = project.path_from_buf(source_bufnr) or ''
   local root = project.root(path)
   return {
     projectRoot = root,
@@ -318,20 +317,93 @@ local function normalize_config(config)
   return normalized
 end
 
-local function prepare_java_dap()
-  local ok, java = pcall(require, 'java')
-  if ok and java.dap and java.dap.config_dap then
-    java.dap.config_dap()
+local function starts_with_path(path, root)
+  return path == root or path:sub(1, #root + 1) == root .. '/'
+end
+
+local function find_jdtls_client(path)
+  local best_client
+  local best_root_len = -1
+
+  for _, client in ipairs(vim.lsp.get_clients({ name = 'jdtls' })) do
+    local roots = {}
+
+    if client.config and client.config.root_dir then
+      table.insert(roots, client.config.root_dir)
+    end
+
+    for _, folder in ipairs(client.workspace_folders or {}) do
+      table.insert(roots, vim.uri_to_fname(folder.uri))
+    end
+
+    for _, root in ipairs(roots) do
+      local normalized_root = vim.fs.normalize(root)
+      if normalized_root and starts_with_path(path, normalized_root) and #normalized_root > best_root_len then
+        best_client = client
+        best_root_len = #normalized_root
+      end
+    end
+  end
+
+  return best_client
+end
+
+local function find_java_buffer(root)
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == '' then
+      local path = project.path_from_buf(bufnr) or ''
+      if path:sub(-5) == '.java' and project.root(path) == root then
+        return bufnr
+      end
+    end
   end
 end
 
-local function start_config(config)
+local function prepare_java_dap(path_or_bufnr)
+  local ok, java = pcall(require, 'java')
+  if not (ok and java.dap and java.dap.config_dap) then
+    return true
+  end
+
+  local source_bufnr = source_context_buf(path_or_bufnr)
+  local source_path = project.path_from_buf(source_bufnr) or ''
+  local client = source_path ~= '' and find_jdtls_client(source_path) or nil
+  if not client then
+    vim.notify('Java debug requires an active jdtls client. Open a Java file in this project first, wait for jdtls to attach, then retry.', vim.log.levels.WARN)
+    return false
+  end
+
+  local java_bufnr = source_bufnr
+  if source_path:sub(-5) ~= '.java' then
+    java_bufnr = find_java_buffer(project.root(source_path))
+  end
+
+  local ok_config, err = pcall(function()
+    if java_bufnr and java_bufnr > 0 then
+      vim.api.nvim_buf_call(java_bufnr, function()
+        java.dap.config_dap()
+      end)
+      return
+    end
+
+    java.dap.config_dap()
+  end)
+
+  if not ok_config then
+    vim.notify('Java DAP setup failed: ' .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+
+  return true
+end
+
+local function start_config(config, path_or_bufnr)
   local dap = require('dap')
-  local vars = placeholder_vars()
+  local vars = placeholder_vars(path_or_bufnr)
   local expanded = expand_placeholders(normalize_config(config), vars)
 
-  if expanded.type == 'java' then
-    prepare_java_dap()
+  if expanded.type == 'java' and not prepare_java_dap(path_or_bufnr) then
+    return
   end
 
   dap.run(expanded)
@@ -353,7 +425,7 @@ function M.start(path_or_bufnr)
   end
 
   if #configurations == 1 then
-    start_config(configurations[1])
+    start_config(configurations[1], path_or_bufnr)
     return
   end
 
@@ -366,7 +438,7 @@ function M.start(path_or_bufnr)
     if not choice then
       return
     end
-    start_config(choice)
+    start_config(choice, path_or_bufnr)
   end)
 end
 
