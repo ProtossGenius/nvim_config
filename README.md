@@ -104,7 +104,7 @@
 ### 10. 调试配置
 - **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置，`SPC d q` 切换 DAP quick mode。
 - **快捷键文件**：所有 DAP 相关 leader 键和 quick mode 键位都集中在 `lua/user/dap_keymaps.lua`，方便单独调整。
-- **Quick mode**：当调试停在断点/步进位置时会自动进入 quick mode；此时 `n` = next line、`s` = step into、`u` = step out、`c` = continue、`b` = toggle breakpoint、`q` = 退出 quick mode。
+- **Quick mode**：调试 session 一开始就会注册 quick mode 快捷键，切换文件后仍然可用；此时 `n` = next line（项目内优先）、`N` = next line、`s` = step into（默认跳过非项目代码）、`S` = step into、`u` = step out（默认跳过非项目代码）、`U` = step out、`c` = continue、`b` = toggle breakpoint、`q` = 退出 quick mode。
 - **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；`SPC d e` 首次打开时会自动生成默认配置。
 - **默认模板**：
   - Java 项目默认生成 `port`（按端口 attach）和 `launch`（按 main class 启动）；
