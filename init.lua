@@ -88,6 +88,10 @@ end
 
 -- Load utility functions
 require('user.util')
+require('user.jump').setup()
+require('user.json_meta').setup()
+require('user.dap').setup()
+require('user.xml').setup()
 
 -- Load file templates boilerplate generator
 require('user.templates').setup()

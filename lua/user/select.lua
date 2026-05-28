@@ -53,7 +53,7 @@ function M.select(items, opts, on_choice)
     border = "rounded",
     title = " " .. prompt .. " ",
     title_pos = "center",
-    footer = " [0-9]: Jump  <BS>: Back  <CR>: Run  q: Exit  <Esc><Esc>: Exit ",
+    footer = " [0-9]: Jump  <BS>: Back  <S-CR>: Run  q: Exit  <Esc><Esc>: Exit ",
     footer_pos = "center",
   }
 
@@ -145,8 +145,10 @@ function M.select(items, opts, on_choice)
     render_status()
   end, { buffer = buf, silent = true })
 
-  -- Bind Enter
-  vim.keymap.set("n", "<CR>", select_current, { buffer = buf, silent = true })
+  -- Bind Shift-Enter for confirm; plain Enter should not trigger the current item.
+  vim.keymap.set("n", "<S-CR>", select_current, { buffer = buf, silent = true })
+  vim.keymap.set("n", "<S-Enter>", select_current, { buffer = buf, silent = true })
+  vim.keymap.set("n", "<CR>", function() end, { buffer = buf, silent = true })
 
   -- Bind q
   vim.keymap.set("n", "q", abort, { buffer = buf, silent = true })

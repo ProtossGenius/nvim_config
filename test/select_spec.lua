@@ -19,7 +19,10 @@ support.expect_equal('select status line visible', vim.api.nvim_buf_get_lines(0,
 support.feed('2')
 support.expect_equal('select numeric jump updates status', vim.api.nvim_buf_get_lines(0, 0, 1, false), { ' Input: 2' })
 support.feed('<CR>')
-support.expect_equal('select enter chooses item', { choice_item, choice_index }, { 'beta', 2 })
+support.expect_true('select plain enter keeps popup open', vim.api.nvim_buf_is_valid(vim.api.nvim_get_current_buf()))
+support.expect_equal('select plain enter does not choose item', { choice_item, choice_index }, { nil, nil })
+support.feed('<S-CR>')
+support.expect_equal('select shift enter chooses item', { choice_item, choice_index }, { 'beta', 2 })
 
 open_select()
 local popup_buf = vim.api.nvim_get_current_buf()

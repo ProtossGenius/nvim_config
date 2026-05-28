@@ -17,6 +17,8 @@
 | `SPC w ...` | 窗口操作组 |
 | `SPC x ...` | 诊断操作组 |
 | `SPC m ...` | make / build 操作组 |
+| `<S-f>` | 当前行的 stack trace / reference / `path:line` 精确跳转；失败时回退到 `gF` |
+| `<C-y>,` | 在 `html` / `xml` / `css` / `svg` / `xhtml` buffer 里展开 Emmet 缩写 |
 | `SPC ?` | 查看当前 buffer 可用快捷键 |
 
 按下 `Space` 或其它前缀键的一半时，会通过 `which-key.nvim` 在底部显示可继续输入的操作。
@@ -42,7 +44,7 @@
 
 ## 新增功能与用法 (New Features & Usage)
 
-配置近期新增了以下 7 大核心功能与性能优化：
+配置近期新增了以下核心功能与性能优化：
 
 ### 1. 新建代码文件自动填充模板
 在新创代码文件时，会自动触发 `BufNewFile` 钩子生成对应语言的模板文件体：
@@ -72,7 +74,7 @@
   - **数字直接跳转**：支持按下数字键 `0-9` 直接跳转对应行（例如输入 `1` 跳转第一行，若再输入 `5` 且存在该选项，则会智能组合输入为 `15` 并自动跳到第 15 行）。
   - **顶部红色输入提示**：浮窗顶部会显眼显示当前已输入的数字，并用红色高亮；只有在输入数字能命中有效条目时，才会直接跳转到对应行。
   - **退格回滚 (`<BS>`)**：输入错误时按退格键能立刻删除上一位数字，并退回原选项位置。
-  - **运行与退出**：选中后直接按 `<CR>` (回车) 执行该 action；任何时候按 `q` 或快速连按两次 `<Esc>` 退出悬浮框且不进行任何操作。
+  - **运行与退出**：选中后按 `<S-CR>` (Shift+Enter) 执行该 action；普通 `<CR>` 不会误提交；任何时候按 `q` 或快速连按两次 `<Esc>` 退出悬浮框且不进行任何操作。
 
 ### 6. 当前文件 buffer 的快捷编辑
 - **重命名 (`SPC b r`)**：对当前打开文件执行重命名；若是 Java 文件，会优先通过 LSP/JDTLS 做安全重构，而不是只改磁盘文件名。
@@ -86,6 +88,29 @@
   - Java `@Slf4j` / `log.info("x {}", value)` 这类 SLF4J 的 `{}` 风格；
   - Rust `println!` / `format!` / `panic!` 一类的 `{}` / `{:?}` 风格。
 
+### 8. 精确跳转与 Copy Reference
+- **快捷键**：`<S-f>`、`SPC o f`、`SPC o r`
+- **功能**：
+  - `<S-f>` 会优先解析当前行里的 Java stack trace、`path:line[:col]`、项目内精确文件路径或 Java `com.example.Class#member` 引用并直接跳转；
+  - 若当前行不匹配这些格式，则自动回退到原来的 `gF` 行为；
+  - `SPC o f` 会弹出输入框，手动输入精确 reference 后跳转；
+  - `SPC o r` / `:CopyReference` 会复制当前文件/Java 成员的 reference；Java buffer 优先输出 `com.example.Class#method` 这类形式。
+
+### 9. XML 编辑增强
+- **Emmet**：`mattn/emmet-vim` 只在 `html` / `xml` / `css` / `svg` / `xhtml` buffer 里安装映射，默认触发键是 `<C-y>,`。
+- **标签联动**：在 XML 里修改 `<hello></hello>` 任一侧标签名时，另一侧会跟着改；`<hello/>` 这种自闭合标签不会误改；如果原本就是 `<hello></world>` 这种不匹配状态，也不会强行“修正”另一侧。
+- **Treesitter**：现在会一并确保 `yaml` / `json` / `json5` / `toml` 等常用 parser 自动安装。
+
+### 10. 调试配置与结构化 JSON 编辑
+- **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置。
+- **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；只有一个配置时会直接启动，多个配置时会弹出选择框。
+- **JSON Meta Editor**：新增 `:JsonMetaEdit <target.json> <meta.json>`，用 meta JSON 描述结构后，以结构化 buffer 编辑目标 JSON：
+  - key 固定不可持久修改，value 可编辑并带类型校验；
+  - `<Tab>` / `<S-Tab>` 在可编辑 value 间切换；
+  - `+` 在当前数组项上方插入，`=` 在下方插入，`-` 删除当前数组项；
+  - `dd` 只清空当前 value，不会删掉 key；
+  - `Alt+Shift+j/k` 与 `Alt+Shift+Up/Down` 可在普通文本里移动行，在 JSON editor 的数组里则移动整个 item。
+
 ## 测试
 
 运行仓库根目录下的 `./test/run_regression_suite.sh` 会执行当前配置的回归脚本，覆盖：
@@ -93,7 +118,10 @@
 - 无界面启动 smoke test；
 - 现有注释行为测试；
 - 悬浮 `vim.ui.select` 行为测试；
+- 精确跳转 / Copy Reference 测试；
 - 当前 buffer / Dirvish 文件动作测试；
+- XML 标签联动与 Emmet 安装测试；
+- 结构化 JSON editor 与 DAP 配置测试；
 - 跨语言格式串占位符高亮测试；
 - `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
 

@@ -4,6 +4,7 @@
 local opts = { noremap = true, silent = true }
 local keymap = vim.keymap.set
 local file_actions = require('user.file_actions')
+local text_move = require('user.text_move')
 
 local function leader_map(mode, lhs, rhs, desc)
   keymap(mode, lhs, rhs, vim.tbl_extend('force', opts, { desc = desc }))
@@ -94,6 +95,11 @@ leader_map('n', '<leader>xy', function()
   vim.notify(string.format('Copied %d diagnostic(s) to clipboard', #diagnostics), vim.log.levels.INFO)
 end, 'Copy line diagnostics to clipboard')
 
+-- Debug
+leader_map('n', '<leader>db', function() require('user.dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
+leader_map('n', '<leader>dc', function() require('user.dap').start() end, 'Debug: Start from project config')
+leader_map('n', '<leader>de', function() require('user.dap').edit_config() end, 'Debug: Edit project config')
+
 -- Git Changes
 keymap('n', ']c', '<cmd>Gitsigns next_hunk<cr>', { desc = 'Next Git change' })
 keymap('n', '[c', '<cmd>Gitsigns prev_hunk<cr>', { desc = 'Previous Git change' })
@@ -165,6 +171,20 @@ end
 keymap({'n', 'i', 'v', 't'}, '<M-t>', toggle_terminal, { desc = 'Toggle terminal' })
 leader_map('n', '<leader>tt', toggle_terminal, 'Toggle terminal')
 
+-- Move lines / selections
+keymap('n', '<M-J>', text_move.move_line_down, { desc = 'Move line down' })
+keymap('n', '<M-K>', text_move.move_line_up, { desc = 'Move line up' })
+keymap('n', '<M-S-Down>', text_move.move_line_down, { desc = 'Move line down' })
+keymap('n', '<M-S-Up>', text_move.move_line_up, { desc = 'Move line up' })
+keymap('x', '<M-J>', text_move.move_selection_down, { desc = 'Move selection down' })
+keymap('x', '<M-K>', text_move.move_selection_up, { desc = 'Move selection up' })
+keymap('x', '<M-S-Down>', text_move.move_selection_down, { desc = 'Move selection down' })
+keymap('x', '<M-S-Up>', text_move.move_selection_up, { desc = 'Move selection up' })
+keymap('i', '<M-J>', text_move.move_insert_line_down, { desc = 'Move line down' })
+keymap('i', '<M-K>', text_move.move_insert_line_up, { desc = 'Move line up' })
+keymap('i', '<M-S-Down>', text_move.move_insert_line_down, { desc = 'Move line down' })
+keymap('i', '<M-S-Up>', text_move.move_insert_line_up, { desc = 'Move line up' })
+
 -- Better movement
 expr_map({ 'n', 'x', 'o' }, 'j', "v:count == 0 ? 'gj' : 'j'", 'Down by display line')
 expr_map({ 'n', 'x', 'o' }, 'k', "v:count == 0 ? 'gk' : 'k'", 'Up by display line')
@@ -190,7 +210,7 @@ local function term_exec(cmd)
   vim.cmd('startinsert')
 end
 keymap('v', '<C-c>', 'y')
-keymap('n', '<S-f>', 'gF')
+keymap('n', '<S-f>', function() require('user.jump').jump_current_line() end, { desc = 'Jump stack/reference or fallback to gF' })
 keymap('n', '<F5>', function() term_exec('make qrun') end, { desc = 'Make qrun' })
 keymap('n', '<F6>', function() term_exec('make') end, { desc = 'Make' })
 keymap('n', '<F8>', function() term_exec('make tests') end, { desc = 'Make tests' })
@@ -203,6 +223,8 @@ leader_map('n', '<leader>md', function() term_exec('make debug') end, 'Make debu
 -- C/C++ Header/Source toggle
 keymap('n', '<M-h>', function() require('user.util').toggle_header_source() end, { desc = 'Toggle header/source' })
 leader_map('n', '<leader>oh', function() require('user.util').toggle_header_source() end, 'Toggle header/source')
+leader_map('n', '<leader>of', function() require('user.jump').prompt_jump() end, 'Open exact file/reference')
+leader_map('n', '<leader>or', function() require('user.jump').copy_reference() end, 'Copy reference')
 
 -- Aerial (Code Outline)
 keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial outline' })

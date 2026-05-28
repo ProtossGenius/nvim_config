@@ -67,7 +67,7 @@ return {
           },
           {
             mode = 'n',
-            { '<leader>d', group = 'Document' },
+            { '<leader>d', group = 'Debug/Doc' },
             { '<leader>o', group = 'Open/Outline' },
             { '<leader>r', group = 'Rename' },
             { '<leader>s', group = 'Split' },
@@ -95,6 +95,7 @@ return {
     config = function()
       local telescope = require('telescope')
       local builtin = require('telescope.builtin')
+      local project = require('user.project')
       local uv = vim.uv or vim.loop
 
       local function existing_ignore_files()
@@ -153,18 +154,7 @@ return {
 
       require('project_nvim').setup({
         detection_methods = { 'pattern' },
-        patterns = {
-          '.git',
-          'mvnw',
-          'gradlew',
-          'pom.xml',
-          'build.gradle',
-          'build.gradle.kts',
-          'settings.gradle',
-          'settings.gradle.kts',
-          'Makefile',
-          'package.json',
-        },
+        patterns = project.root_markers,
         silent_chdir = true,
       })
       telescope.load_extension('projects')
@@ -205,12 +195,16 @@ return {
           'html',
           'java',
           'javascript',
+          'json',
+          'json5',
           'lua',
           'python',
           'rust',
+          'toml',
           'tsx',
           'typescript',
           'xml',
+          'yaml',
         },
         sync_install = false,
         auto_install = true,
@@ -218,6 +212,20 @@ return {
         indent = { enable = not is_nvim_012_or_newer },
       }
     end,
+  },
+  {
+    'windwp/nvim-ts-autotag',
+    lazy = false,
+    dependencies = {
+      'nvim-treesitter/nvim-treesitter',
+    },
+    opts = {
+      opts = {
+        enable_close = true,
+        enable_rename = true,
+        enable_close_on_slash = false,
+      },
+    },
   },
 
   -- Commenting
@@ -437,7 +445,25 @@ return {
   --  },
   'tpope/vim-unimpaired',
   'tpope/vim-surround',
-  'mattn/emmet-vim',
+  {
+    'mattn/emmet-vim',
+    init = function()
+      vim.g.user_emmet_install_global = 0
+      vim.api.nvim_create_autocmd('FileType', {
+        group = vim.api.nvim_create_augroup('UserEmmetInstall', { clear = true }),
+        pattern = {
+          'css',
+          'html',
+          'svg',
+          'xhtml',
+          'xml',
+        },
+        callback = function()
+          vim.cmd('EmmetInstall')
+        end,
+      })
+    end,
+  },
   'ProtossGenius/leetcode.vim',
 
   -- Markdown Preview

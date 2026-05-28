@@ -1,4 +1,5 @@
 local uv = vim.uv or vim.loop
+local project = require('user.project')
 
 local M = {}
 
@@ -13,17 +14,6 @@ local runtime_scan_patterns = {
 local managed_runtime_scan_patterns = {
   vim.fs.joinpath(vim.fn.stdpath('data'), 'nvim-java', 'packages', 'openjdk', '*', 'jdk-*', 'Contents', 'Home'),
   vim.fs.joinpath(vim.fn.stdpath('data'), 'nvim-java', 'packages', 'openjdk', '*', 'jdk-*'),
-}
-
-local project_root_markers = {
-  'mvnw',
-  'gradlew',
-  'pom.xml',
-  'build.gradle',
-  'build.gradle.kts',
-  'settings.gradle',
-  'settings.gradle.kts',
-  '.git',
 }
 
 local state
@@ -257,8 +247,7 @@ local function get_state()
 end
 
 local function project_root(bufnr)
-  local bufname = vim.api.nvim_buf_get_name(bufnr)
-  return vim.fs.root(bufname ~= '' and bufname or vim.fn.getcwd(), project_root_markers) or vim.fn.getcwd()
+  return project.root(bufnr)
 end
 
 local function basename(path)
