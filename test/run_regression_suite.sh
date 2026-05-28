@@ -20,6 +20,8 @@ run_spec "test/jump_spec.lua"
 run_spec "test/file_actions_spec.lua"
 run_spec "test/xml_editing_spec.lua"
 run_spec "test/dap_config_spec.lua"
+run_spec "test/dap_keymaps_spec.lua"
+run_spec "test/dap_cpp_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 
 echo "==> test/java_file_actions_integration.lua"

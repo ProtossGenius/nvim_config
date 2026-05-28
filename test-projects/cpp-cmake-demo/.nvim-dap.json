@@ -1,0 +1,32 @@
+{
+  "_desc": "Default launch + process-pick configs generated from the current build files.",
+  "_detected": {
+    "buildTool": "cmake",
+    "cmake": {
+      "executableTargets": [
+        "cpp_dap_demo"
+      ],
+      "projectName": "cpp_cmake_demo"
+    },
+    "root": ".",
+    "rootName": "cpp-cmake-demo"
+  },
+  "configurations": [
+    {
+      "args": [],
+      "cwd": "${projectRoot}",
+      "name": "launch",
+      "program": "${projectRoot}/build/cpp_dap_demo",
+      "request": "launch",
+      "type": "lldb"
+    },
+    {
+      "cwd": "${projectRoot}",
+      "name": "attach-process",
+      "processQuery": "cpp_dap_demo",
+      "program": "${projectRoot}/build/cpp_dap_demo",
+      "request": "attach",
+      "type": "lldb"
+    }
+  ]
+}

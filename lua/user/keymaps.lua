@@ -95,11 +95,6 @@ leader_map('n', '<leader>xy', function()
   vim.notify(string.format('Copied %d diagnostic(s) to clipboard', #diagnostics), vim.log.levels.INFO)
 end, 'Copy line diagnostics to clipboard')
 
--- Debug
-leader_map('n', '<leader>db', function() require('user.dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
-leader_map('n', '<leader>dc', function() require('user.dap').start() end, 'Debug: Start from project config')
-leader_map('n', '<leader>de', function() require('user.dap').edit_config() end, 'Debug: Edit project config')
-
 -- Git Changes
 keymap('n', ']c', '<cmd>Gitsigns next_hunk<cr>', { desc = 'Next Git change' })
 keymap('n', '[c', '<cmd>Gitsigns prev_hunk<cr>', { desc = 'Previous Git change' })
@@ -279,6 +274,8 @@ vim.api.nvim_create_autocmd("FileType", {
     end, { buffer = true, desc = 'Expand macro' })
   end,
 })
+
+require('user.dap_keymaps').setup()
 
 -- Dirvish explorer helpers
 local function dirvish_run_command()

@@ -10,6 +10,7 @@ M.root_markers = {
   'build.gradle.kts',
   'settings.gradle',
   'settings.gradle.kts',
+  'CMakeLists.txt',
   'Makefile',
   'package.json',
 }

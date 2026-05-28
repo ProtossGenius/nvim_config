@@ -3,6 +3,17 @@ local project = require('user.project')
 local M = {}
 
 local CONFIG_FILENAME = '.nvim-dap.json'
+local CPP_EXTENSIONS = {
+  c = true,
+  cc = true,
+  cpp = true,
+  cxx = true,
+  h = true,
+  hh = true,
+  hpp = true,
+  hxx = true,
+}
+local lldb_dap_path
 
 local function is_config_file(path)
   return path and path ~= '' and vim.fs.basename(path) == CONFIG_FILENAME
@@ -142,6 +153,26 @@ local function detect_test_candidates(root)
   return candidates
 end
 
+local function detect_cmake_info(root)
+  local info = {
+    projectName = nil,
+    executableTargets = {},
+  }
+
+  local cmake_text = read_text(vim.fs.joinpath(root, 'CMakeLists.txt'))
+  if not cmake_text then
+    return info
+  end
+
+  info.projectName = cmake_text:match('project%s*%(%s*([%w_%-%.]+)')
+  for target in cmake_text:gmatch('add_executable%s*%(%s*([%w_%-%.]+)') do
+    table.insert(info.executableTargets, target)
+  end
+
+  table.sort(info.executableTargets)
+  return info
+end
+
 local function detect_project_info(path_or_bufnr)
   local root = project.root(path_or_bufnr)
   local info = {
@@ -150,6 +181,7 @@ local function detect_project_info(path_or_bufnr)
     buildTool = nil,
     maven = {},
     gradle = {},
+    cmake = {},
     eclipse = {},
     java = {},
   }
@@ -172,6 +204,11 @@ local function detect_project_info(path_or_bufnr)
     info.gradle.projectName = gradle_settings:match("rootProject%%.name%s*=%s*['\"]([^'\"]+)['\"]")
   end
 
+  info.cmake = detect_cmake_info(root)
+  if #info.cmake.executableTargets > 0 then
+    info.buildTool = info.buildTool or 'cmake'
+  end
+
   local eclipse_text = read_text(vim.fs.joinpath(root, '.project'))
   if eclipse_text then
     info.eclipse.projectName = xml_tag(eclipse_text, 'name')
@@ -186,12 +223,39 @@ end
 local function default_project_name(info)
   return info.eclipse.projectName
     or info.gradle.projectName
+    or info.cmake.projectName
     or vim.fs.basename(info.root)
     or info.maven.artifactId
     or info.maven.name
 end
 
-local function config_template(info)
+local function detect_debug_kind(path_or_bufnr, info)
+  local path
+  if type(path_or_bufnr) == 'number' then
+    path = project.path_from_buf(path_or_bufnr)
+  elseif type(path_or_bufnr) == 'string' then
+    path = path_or_bufnr
+  else
+    path = project.path_from_buf(0)
+  end
+
+  local ext = (path and vim.fn.fnamemodify(path, ':e') or ''):lower()
+  if CPP_EXTENSIONS[ext] then
+    return 'cpp'
+  end
+  if ext == 'java' then
+    return 'java'
+  end
+  if #info.java.mainClasses > 0 and #info.cmake.executableTargets == 0 then
+    return 'java'
+  end
+  if #info.cmake.executableTargets > 0 then
+    return 'cpp'
+  end
+  return 'java'
+end
+
+local function java_config_template(info)
   local main_class = info.java.mainClasses[1] or 'com.example.Main'
   local build_tool = info.buildTool or 'unknown'
 
@@ -203,6 +267,7 @@ local function config_template(info)
       buildTool = build_tool,
       maven = info.maven,
       gradle = info.gradle,
+      cmake = info.cmake,
       eclipse = info.eclipse,
       java = info.java,
     },
@@ -226,6 +291,46 @@ local function config_template(info)
   }
 end
 
+local function cpp_config_template(info)
+  local target = info.cmake.executableTargets[1] or default_project_name(info) or 'app'
+  local build_tool = info.buildTool or 'cmake'
+
+  return {
+    _desc = 'Default launch + process-pick configs generated from the current build files.',
+    _detected = {
+      root = '.',
+      rootName = vim.fs.basename(info.root),
+      buildTool = build_tool,
+      cmake = info.cmake,
+    },
+    configurations = {
+      {
+        name = 'launch',
+        type = 'lldb',
+        request = 'launch',
+        cwd = '${projectRoot}',
+        program = '${projectRoot}/build/' .. target,
+        args = {},
+      },
+      {
+        name = 'attach-process',
+        type = 'lldb',
+        request = 'attach',
+        cwd = '${projectRoot}',
+        program = '${projectRoot}/build/' .. target,
+        processQuery = target,
+      },
+    },
+  }
+end
+
+local function config_template(info, path_or_bufnr)
+  if detect_debug_kind(path_or_bufnr, info) == 'cpp' then
+    return cpp_config_template(info)
+  end
+  return java_config_template(info)
+end
+
 local function ensure_config_file(path_or_bufnr)
   local path = config_path(path_or_bufnr)
   local stat = vim.uv.fs_stat(path)
@@ -234,7 +339,7 @@ local function ensure_config_file(path_or_bufnr)
   end
 
   vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
-  local template = config_template(detect_project_info(path_or_bufnr))
+  local template = config_template(detect_project_info(path_or_bufnr), path_or_bufnr)
   vim.fn.writefile(vim.split(pretty_json(template), '\n', { plain = true }), path)
   return path
 end
@@ -353,7 +458,145 @@ local function normalize_config(config)
     end
   end
 
+  if type(normalized.pid) == 'string' then
+    normalized.pid = tonumber(normalized.pid) or normalized.pid
+  end
+
   return normalized
+end
+
+local function shell_command_output(cmd)
+  local result = vim.system(cmd, { text = true }):wait()
+  if result.code ~= 0 then
+    return nil, result.stderr or ('Command failed: ' .. table.concat(cmd, ' '))
+  end
+  return vim.trim(result.stdout or '')
+end
+
+local function find_lldb_dap()
+  if lldb_dap_path then
+    return lldb_dap_path
+  end
+
+  local exepath = vim.fn.exepath('lldb-dap')
+  if exepath ~= '' then
+    lldb_dap_path = exepath
+    return lldb_dap_path
+  end
+
+  if vim.fn.executable('xcrun') == 1 then
+    local resolved = shell_command_output({ 'xcrun', '--find', 'lldb-dap' })
+    if resolved and resolved ~= '' then
+      lldb_dap_path = resolved
+      return lldb_dap_path
+    end
+  end
+
+  return nil
+end
+
+local function ensure_native_dap()
+  local dap = require('dap')
+  if dap.adapters.lldb ~= nil then
+    return true
+  end
+
+  local command = find_lldb_dap()
+  if not command then
+    vim.notify('Could not find lldb-dap. Install Xcode Command Line Tools or make lldb-dap available in PATH.', vim.log.levels.ERROR)
+    return false
+  end
+
+  dap.adapters.lldb = {
+    type = 'executable',
+    command = command,
+    name = 'lldb',
+  }
+  return true
+end
+
+local function process_thread_count(pid)
+  local result = vim.system({ 'ps', '-M', '-p', tostring(pid) }, { text = true }):wait()
+  if result.code ~= 0 or not result.stdout or result.stdout == '' then
+    return nil
+  end
+
+  local lines = 0
+  for _ in result.stdout:gmatch('[^\n]+') do
+    lines = lines + 1
+  end
+
+  if lines > 1 then
+    return lines - 1
+  end
+end
+
+local function matching_processes(query)
+  local stdout, err = shell_command_output({ 'ps', '-axo', 'pid=,command=' })
+  if not stdout then
+    return nil, err
+  end
+
+  local matches = {}
+  local needle = query:lower()
+  for line in stdout:gmatch('[^\n]+') do
+    local pid, command = line:match('^%s*(%d+)%s+(.*)$')
+    if pid and command and command ~= '' and command:lower():find(needle, 1, true) then
+      table.insert(matches, {
+        pid = tonumber(pid),
+        command = command,
+        threads = process_thread_count(pid),
+      })
+    end
+  end
+
+  table.sort(matches, function(left, right)
+    return left.pid < right.pid
+  end)
+
+  return matches
+end
+
+local function pick_process(config, callback)
+  local default_query = config.processQuery or config.name or vim.fs.basename(config.program or project.root(0))
+  vim.ui.input({
+    prompt = 'Search process: ',
+    default = default_query,
+  }, function(query)
+    query = vim.trim(query or '')
+    if query == '' then
+      callback(nil)
+      return
+    end
+
+    local matches, err = matching_processes(query)
+    if not matches then
+      vim.notify(err, vim.log.levels.ERROR)
+      callback(nil)
+      return
+    end
+
+    if #matches == 0 then
+      vim.notify('No process matched: ' .. query, vim.log.levels.WARN)
+      callback(nil)
+      return
+    end
+
+    if #matches == 1 then
+      callback(matches[1].pid)
+      return
+    end
+
+    vim.ui.select(matches, {
+      prompt = 'Select process',
+      format_item = function(item)
+        local thread_text = item.threads and (' threads=' .. item.threads) or ''
+        return string.format('pid=%d%s %s', item.pid, thread_text, item.command)
+      end,
+    }, function(choice)
+      callback(choice and choice.pid or nil)
+    end)
+  end)
 end
 
 local function starts_with_path(path, root)
@@ -443,6 +686,26 @@ local function start_config(config, path_or_bufnr)
 
   if expanded.type == 'java' and not prepare_java_dap(path_or_bufnr) then
     return
+  end
+
+  if expanded.type == 'lldb' then
+    if not ensure_native_dap() then
+      return
+    end
+
+    if expanded.request == 'attach' and not expanded.pid then
+      pick_process(expanded, function(pid)
+        if not pid then
+          return
+        end
+
+        local attach_config = vim.deepcopy(expanded)
+        attach_config.pid = pid
+        attach_config.processQuery = nil
+        dap.run(attach_config)
+      end)
+      return
+    end
   end
 
   dap.run(expanded)

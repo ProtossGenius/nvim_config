@@ -102,13 +102,17 @@
 - **Treesitter**：现在会一并确保 `yaml` / `json` / `json5` / `toml` 等常用 parser 自动安装。
 
 ### 10. 调试配置
-- **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置。
+- **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置，`SPC d q` 切换 DAP quick mode。
+- **快捷键文件**：所有 DAP 相关 leader 键和 quick mode 键位都集中在 `lua/user/dap_keymaps.lua`，方便单独调整。
+- **Quick mode**：当调试停在断点/步进位置时会自动进入 quick mode；此时 `n` = next line、`s` = step into、`u` = step out、`c` = continue、`b` = toggle breakpoint、`q` = 退出 quick mode。
 - **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；`SPC d e` 首次打开时会自动生成默认配置。
 - **默认模板**：
-  - 默认直接生成两条配置：`port`（按端口 attach）和 `launch`（按 main class 启动）；
-  - 会尽量根据 Maven / Gradle / Eclipse / main class 信息生成默认值，并写入 `_detected`；
-  - `port` 会直接带上检测到的 `mainClass`，这样可以兼容 `nvim-java` 当前的 Java attach 处理；
-  - `port` 和 `launch` 都要求当前项目已有活动的 `jdtls`，所以先打开一个该项目里的 Java 文件，确认 `:LspInfo` 里有 `jdtls`，再启动调试。
+  - Java 项目默认生成 `port`（按端口 attach）和 `launch`（按 main class 启动）；
+  - CMake C++ 项目默认生成 `launch` 和 `attach-process`；
+  - 会尽量根据 Maven / Gradle / Eclipse / main class / CMake target 信息生成默认值，并写入 `_detected`；
+  - Java 的 `port` 会直接带上检测到的 `mainClass`，这样可以兼容 `nvim-java` 当前的 Java attach 处理；
+  - Java 的 `port` / `launch` 都要求当前项目已有活动的 `jdtls`，所以先打开一个该项目里的 Java 文件，确认 `:LspInfo` 里有 `jdtls`，再启动调试；
+  - C++ 的 `attach-process` 会先弹出一个搜索框，默认按配置里的进程关键字搜索；只命中一个进程就直接附加，命中多个时会列出线程数和启动参数供选择。
 
 ## 测试
 
@@ -121,6 +125,7 @@
 - 当前 buffer / Dirvish 文件动作测试；
 - XML 标签联动与 Emmet 安装测试；
 - 直接 JSON DAP 配置模板与启动测试；
+- DAP quick mode 与 C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
 - `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
 
@@ -135,6 +140,17 @@
 - 结构：`Controller` / `Model` / `Service` / `ServiceImpl` / `Mapper.java` / `Mapper.xml` / `application.yml`
 
 在该目录下运行 `mvn test` 即可验证项目本身可编译、可启动 Spring 上下文，并能跑通一个基础的 service smoke test。
+
+## C++ 示例项目
+
+仓库内置了一个可直接用于验证 CMake / C++ / 多文件结构 / lldb-dap launch 与进程附加流程的示例项目：
+
+- 路径：`test-projects/cpp-cmake-demo`
+- 根标记：`.root`
+- 构建：CMake
+- 结构：`include/demo/*.h` + `src/*.cpp` + `CMakeLists.txt`
+
+在该目录下运行 `cmake -S . -B build && cmake --build build` 即可完成构建；随后可用生成出来的 `.nvim-dap.json` 直接测试 `launch` 和 `attach-process`。
 
 ## 打包
 
