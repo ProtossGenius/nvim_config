@@ -29,7 +29,7 @@ public class UserController {
 
   @GetMapping
   public List<User> listUsers() {
-    log.info("Handling GET /api/users");
+    log.error("Sample stack trace for jump testing", new RuntimeException("debug-stack-sample"));
     return userService.listUsers();
   }
 

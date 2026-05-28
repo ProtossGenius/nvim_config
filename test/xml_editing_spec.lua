@@ -18,6 +18,6 @@ vim.cmd('doautocmd CursorMoved')
 support.feed('ciwplanet<Esc>')
 support.expect_equal('xml mismatched tags are not force synced', support.current_lines(), { '<planet></world>' })
 
-support.expect_true('xml emmet install is buffer local', vim.fn.maparg('<C-y>,', 'i', false, true).lhs ~= nil)
+support.expect_true('xml emmet install is buffer local', vim.fn.maparg(',,', 'i', false, true).lhs ~= nil)
 
 support.flush()

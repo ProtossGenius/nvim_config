@@ -449,6 +449,7 @@ return {
     'mattn/emmet-vim',
     init = function()
       vim.g.user_emmet_install_global = 0
+      vim.g.user_emmet_leader_key = ','
       vim.api.nvim_create_autocmd('FileType', {
         group = vim.api.nvim_create_augroup('UserEmmetInstall', { clear = true }),
         pattern = {

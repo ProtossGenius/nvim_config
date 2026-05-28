@@ -122,6 +122,14 @@ local function parse_java_reference(text)
       class_name = class_name,
     }
   end
+
+  class_name = text:match('([%l_][%w_]*%.[%w_%.]*[%u][%w_$]*)')
+  if class_name then
+    return {
+      kind = 'java-reference',
+      class_name = class_name,
+    }
+  end
 end
 
 local function resolve_path_ref(ref, opts)

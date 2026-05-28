@@ -6,6 +6,7 @@ vim.fn.mkdir(temp_root .. '/src/main/java/com/example', 'p')
 temp_root = vim.uv.fs_realpath(temp_root) or vim.fs.normalize(temp_root)
 
 local java_path = vim.fs.normalize(temp_root .. '/src/main/java/com/example/App.java')
+local exception_path = vim.fs.normalize(temp_root .. '/src/main/java/com/example/AppException.java')
 vim.fn.writefile({
   'package com.example;',
   '',
@@ -17,6 +18,15 @@ vim.fn.writefile({
   '  }',
   '}',
 }, java_path)
+vim.fn.writefile({
+  'package com.example;',
+  '',
+  'public class AppException extends RuntimeException {',
+  '  public AppException(String message) {',
+  '    super(message);',
+  '  }',
+  '}',
+}, exception_path)
 
 vim.cmd('cd ' .. vim.fn.fnameescape(temp_root))
 
@@ -28,6 +38,9 @@ support.expect_equal('jump parses java refs', java_ref.kind, 'java-reference')
 
 local stack_ref = jump.parse_reference('at com.example.App.run(App.java:6)')
 support.expect_equal('jump parses java stack refs', stack_ref.kind, 'java-stack')
+
+local embedded_class_ref = jump.parse_reference('Caused by: com.example.AppException: boom')
+support.expect_equal('jump parses embedded java class refs', embedded_class_ref.kind, 'java-reference')
 
 local ok_path = jump.jump_reference('src/main/java/com/example/App.java:6', { path = temp_root })
 support.expect_true('jump opens path refs', ok_path)
@@ -41,6 +54,10 @@ support.expect_equal('jump java ref line', vim.api.nvim_win_get_cursor(0)[1], 6)
 local ok_stack = jump.jump_reference('at com.example.App.run(App.java:6)', { path = temp_root })
 support.expect_true('jump opens java stack refs', ok_stack)
 support.expect_equal('jump stack line', vim.api.nvim_win_get_cursor(0)[1], 6)
+
+local ok_class = jump.jump_reference('Caused by: com.example.AppException: boom', { path = temp_root })
+support.expect_true('jump opens embedded java class refs', ok_class)
+support.expect_equal('jump class opens exception file', vim.api.nvim_buf_get_name(0), exception_path)
 
 vim.cmd('edit ' .. vim.fn.fnameescape(java_path))
 vim.api.nvim_win_set_cursor(0, { 6, 15 })

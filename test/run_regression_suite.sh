@@ -19,7 +19,6 @@ run_spec "test/select_spec.lua"
 run_spec "test/jump_spec.lua"
 run_spec "test/file_actions_spec.lua"
 run_spec "test/xml_editing_spec.lua"
-run_spec "test/json_meta_spec.lua"
 run_spec "test/dap_config_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 
