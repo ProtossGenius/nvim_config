@@ -125,6 +125,18 @@
 - 跨语言格式串占位符高亮测试；
 - `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
 
+## Java 示例项目
+
+仓库内置了一个可直接用于手工验证 Java / Spring / Mapper / XML / YAML / Lombok / Slf4j / Maven LSP 行为的示例项目：
+
+- 路径：`test-projects/java17-spring-demo`
+- 根标记：`.root`
+- 构建：Maven
+- Java 版本：17
+- 结构：`Controller` / `Model` / `Service` / `ServiceImpl` / `Mapper.java` / `Mapper.xml` / `application.yml`
+
+在该目录下运行 `mvn test` 即可验证项目本身可编译、可启动 Spring 上下文，并能跑通一个基础的 service smoke test。
+
 ## 打包
 
 运行仓库根目录下的 `./package_nvim.sh` 会生成一个自解压安装脚本 `target/install.sh`。
