@@ -61,6 +61,90 @@ local function get_visual_range(bufnr)
   }
 end
 
+local function jump_to_class()
+  vim.ui.input({ prompt = 'Class: ' }, function(input)
+    local query = vim.trim(input or '')
+    if query == '' then
+      return
+    end
+
+    local responses = vim.lsp.buf_request_sync(0, 'workspace/symbol', {
+      query = query,
+    }, 2000)
+    local matches = {}
+    local wanted = query:lower()
+    local class_kinds = {
+      [vim.lsp.protocol.SymbolKind.Class] = true,
+      [vim.lsp.protocol.SymbolKind.Interface] = true,
+      [vim.lsp.protocol.SymbolKind.Enum] = true,
+      [vim.lsp.protocol.SymbolKind.Struct] = true,
+    }
+
+    for _, response in pairs(responses or {}) do
+      for _, item in ipairs(response.result or {}) do
+        local name = item.name or ''
+        local simple_name = name:match('([%w_$]+)$') or name
+        local lowered_name = name:lower()
+        local lowered_simple = simple_name:lower()
+        if class_kinds[item.kind] and (
+          lowered_simple == wanted
+          or lowered_name == wanted
+          or lowered_simple:find(wanted, 1, true) == 1
+          or lowered_name:find(wanted, 1, true) ~= nil
+        ) then
+          table.insert(matches, item)
+        end
+      end
+    end
+
+    table.sort(matches, function(left, right)
+      return (left.name or '') < (right.name or '')
+    end)
+
+    if #matches == 0 then
+      vim.notify('No matching class found for: ' .. query, vim.log.levels.INFO)
+      return
+    end
+
+    local encoding = 'utf-16'
+    local clients = vim.lsp.get_clients({ bufnr = 0 })
+    if clients[1] and clients[1].offset_encoding then
+      encoding = clients[1].offset_encoding
+    end
+
+    local function jump(item)
+      local location = item.location
+      if location and location.uri and location.range then
+        vim.lsp.util.jump_to_location(location, encoding, true)
+        return
+      end
+      if location and location.targetUri and location.targetRange then
+        vim.lsp.util.jump_to_location({
+          uri = location.targetUri,
+          range = location.targetRange,
+        }, encoding, true)
+      end
+    end
+
+    if #matches == 1 then
+      jump(matches[1])
+      return
+    end
+
+    vim.ui.select(matches, {
+      prompt = 'Jump to class',
+      format_item = function(item)
+        local container = item.containerName and item.containerName ~= '' and (' — ' .. item.containerName) or ''
+        return (item.name or '<unknown>') .. container
+      end,
+    }, function(choice)
+      if choice then
+        jump(choice)
+      end
+    end)
+  end)
+end
+
 local function format_visual_selection()
   local range = get_visual_range(0)
   if not range then
@@ -134,6 +218,7 @@ function M.on_attach(client, bufnr)
   buf_map(bufnr, 'n', '<leader>lD', vim.lsp.buf.declaration, 'LSP: Go to declaration')
   buf_map(bufnr, 'n', '<leader>lr', vim.lsp.buf.references, 'LSP: Go to references')
   buf_map(bufnr, 'n', '<leader>li', vim.lsp.buf.implementation, 'LSP: Go to implementation')
+  buf_map(bufnr, 'n', '<leader>lc', jump_to_class, 'LSP: Jump to class')
   buf_map(bufnr, 'n', '<leader>lt', vim.lsp.buf.type_definition, 'LSP: Go to type definition')
   buf_map(bufnr, 'n', '<leader>lh', vim.lsp.buf.hover, 'LSP: Hover')
   buf_map(bufnr, 'n', '<leader>la', vim.lsp.buf.code_action, 'LSP: Code action')

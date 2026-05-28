@@ -1,4 +1,8 @@
 local support = dofile(vim.fn.stdpath('config') .. '/test/spec_support.lua')
+package.loaded['telescope.builtin'] = {
+  lsp_document_symbols = function() end,
+  lsp_dynamic_workspace_symbols = function() end,
+}
 local user_lsp = require('user.lsp')
 
 local original_format = vim.lsp.buf.format
@@ -28,6 +32,7 @@ user_lsp.on_attach(fake_client, 0)
 
 support.expect_equal('lsp normal format mapping desc', vim.fn.maparg('<leader>lf', 'n', false, true).desc, 'LSP: Format buffer')
 support.expect_equal('lsp visual format mapping desc', vim.fn.maparg('<leader>lf', 'x', false, true).desc, 'LSP: Format selection')
+support.expect_equal('lsp class jump mapping desc', vim.fn.maparg('<leader>lc', 'n', false, true).desc, 'LSP: Jump to class')
 
 vim.fn.setpos("'<", { 0, 1, 1, 0 })
 vim.fn.setpos("'>", { 0, 2, 7, 0 })
