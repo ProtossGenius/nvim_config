@@ -683,9 +683,10 @@ local function start_config(config, path_or_bufnr)
   local dap = require('dap')
   local vars = placeholder_vars(path_or_bufnr)
   local expanded = expand_placeholders(normalize_config(config), vars)
-  local ok_keymaps, dap_keymaps = pcall(require, 'user.dap_keymaps')
-  if ok_keymaps and dap_keymaps.set_project_root then
-    dap_keymaps.set_project_root(vars.projectRoot)
+  local ok_ui, dap_ui = pcall(require, 'user.dap_ui')
+  if ok_ui and dap_ui.set_project_root then
+    dap_ui.set_project_root(vars.projectRoot)
+    dap_ui.ensure_listeners()
   end
 
   if expanded.type == 'java' and not prepare_java_dap(path_or_bufnr) then

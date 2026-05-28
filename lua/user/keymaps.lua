@@ -215,9 +215,6 @@ leader_map('n', '<leader>mm', function() term_exec('make') end, 'Make')
 leader_map('n', '<leader>mt', function() term_exec('make tests') end, 'Make tests')
 leader_map('n', '<leader>md', function() term_exec('make debug') end, 'Make debug')
 
--- C/C++ Header/Source toggle
-keymap('n', '<M-h>', function() require('user.util').toggle_header_source() end, { desc = 'Toggle header/source' })
-leader_map('n', '<leader>oh', function() require('user.util').toggle_header_source() end, 'Toggle header/source')
 leader_map('n', '<leader>of', function() require('user.jump').prompt_jump() end, 'Open exact file/reference')
 leader_map('n', '<leader>or', function() require('user.jump').copy_reference() end, 'Copy reference')
 
@@ -257,6 +254,15 @@ keymap('n', '<leader>rn', '<Plug>(go-rename)', { desc = 'Go rename' })
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "c", "cpp" },
   callback = function()
+    if require('user.util').is_cpp_project(0) then
+      vim.keymap.set('n', '<M-h>', function()
+        require('user.util').toggle_header_source()
+      end, { buffer = true, desc = 'Toggle header/source' })
+      vim.keymap.set('n', '<leader>oh', function()
+        require('user.util').toggle_header_source()
+      end, { buffer = true, desc = 'Toggle header/source' })
+    end
+
     vim.keymap.set('i', ',mm', function()
       local cursor = vim.api.nvim_win_get_cursor(0)
       local line = vim.api.nvim_get_current_line()

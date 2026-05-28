@@ -2,6 +2,7 @@
 -- Utility functions
 
 local M = {}
+local project = require('user.project')
 
 local function supports_range_format(bufnr)
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
@@ -105,6 +106,12 @@ function M.toggle_header_source()
   else
     vim.notify('Could not find corresponding file for: ' .. vim.fn.expand('%'), vim.log.levels.WARN)
   end
+end
+
+function M.is_cpp_project(path_or_bufnr)
+  local root = project.root(path_or_bufnr)
+  return vim.uv.fs_stat(vim.fs.joinpath(root, 'CMakeLists.txt')) ~= nil
+    or vim.uv.fs_stat(vim.fs.joinpath(root, 'compile_commands.json')) ~= nil
 end
 
 -- Autoformat on save, unless filename contains "wasm"

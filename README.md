@@ -102,9 +102,17 @@
 - **Treesitter**：现在会一并确保 `yaml` / `json` / `json5` / `toml` 等常用 parser 自动安装。
 
 ### 10. 调试配置
-- **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置，`SPC d q` 切换 DAP quick mode。
-- **快捷键文件**：所有 DAP 相关 leader 键和 quick mode 键位都集中在 `lua/user/dap_keymaps.lua`，方便单独调整。
-- **Quick mode**：调试 session 一开始就会注册 quick mode 快捷键，切换文件后仍然可用；此时 `n` = next line（项目内优先）、`N` = next line、`s` = step into（默认跳过非项目代码）、`S` = step into、`u` = step out（默认跳过非项目代码）、`U` = step out、`c` = continue、`b` = toggle breakpoint、`q` = 退出 quick mode。
+- **调试入口**：`SPC d b` 切换断点，`SPC d c` 从项目配置启动调试，`SPC d e` 创建/编辑项目级调试配置。
+- **调试面板**：`SPC d o` 切换程序输出面板，`SPC d m` 切换自定义命令面板，`SPC d l` 切换 local 变量面板。它们都会停靠在底部，并按当前显示顺序自动等分宽度。
+- **快捷键文件**：所有 DAP 相关 leader 键都集中在 `lua/user/dap_keymaps.lua`，方便单独调整。
+- **自定义命令面板**：
+  - 不是 `nvim-dap` 默认 REPL，而是单独实现的 prompt 面板，只允许编辑最后一行；
+  - `?` / `help` 显示帮助；
+  - 支持 gdb 风格简写，例如 `c` / `continue`、`n` / `next`、`b` / `break`；
+  - `s` / `u` 默认跳过非本项目代码，`S` / `U` 则不跳过；
+  - `> expr` 或 `p expr` 会输出表达式值；
+  - 空命令回车会重复上一次命令；
+  - `display expr` 会把表达式加入 local 变量展示；如果 local 面板没开，停住后会把有值的 display 结果打印到命令面板。
 - **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；`SPC d e` 首次打开时会自动生成默认配置。
 - **默认模板**：
   - Java 项目默认生成 `port`（按端口 attach）和 `launch`（按 main class 启动）；
@@ -125,7 +133,7 @@
 - 当前 buffer / Dirvish 文件动作测试；
 - XML 标签联动与 Emmet 安装测试；
 - 直接 JSON DAP 配置模板与启动测试；
-- DAP quick mode 与 C++ 进程选择测试；
+- DAP 面板 / 自定义命令 / C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
 - `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
 
