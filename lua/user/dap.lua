@@ -147,17 +147,29 @@ local function detect_project_info(path_or_bufnr)
   local info = {
     root = root,
     rootMarker = vim.fs.basename(root),
+    buildTool = nil,
     maven = {},
+    gradle = {},
     eclipse = {},
     java = {},
   }
 
   local pom_text = read_text(vim.fs.joinpath(root, 'pom.xml'))
   if pom_text then
+    info.buildTool = 'maven'
     local direct_pom = pom_text:gsub('<parent>[%s%S]-</parent>', '')
     info.maven.groupId = xml_tag(direct_pom, 'groupId') or xml_tag(pom_text, 'groupId')
     info.maven.artifactId = xml_tag(direct_pom, 'artifactId') or xml_tag(pom_text, 'artifactId')
     info.maven.name = xml_tag(direct_pom, 'name') or xml_tag(pom_text, 'name')
+  end
+
+  local gradle_settings = read_text(vim.fs.joinpath(root, 'settings.gradle'))
+    or read_text(vim.fs.joinpath(root, 'settings.gradle.kts'))
+    or read_text(vim.fs.joinpath(root, 'build.gradle'))
+    or read_text(vim.fs.joinpath(root, 'build.gradle.kts'))
+  if gradle_settings then
+    info.buildTool = info.buildTool or 'gradle'
+    info.gradle.projectName = gradle_settings:match("rootProject%%.name%s*=%s*['\"]([^'\"]+)['\"]")
   end
 
   local eclipse_text = read_text(vim.fs.joinpath(root, '.project'))
@@ -172,17 +184,25 @@ local function detect_project_info(path_or_bufnr)
 end
 
 local function default_project_name(info)
-  return info.eclipse.projectName or info.maven.artifactId or info.maven.name or vim.fs.basename(info.root)
+  return info.eclipse.projectName
+    or info.gradle.projectName
+    or vim.fs.basename(info.root)
+    or info.maven.artifactId
+    or info.maven.name
 end
 
 local function config_template(info)
-  local project_name = default_project_name(info)
+  local main_class = info.java.mainClasses[1] or 'com.example.Main'
+  local build_tool = info.buildTool or 'unknown'
 
   return {
-    _desc = 'Type port<Tab> or launch<Tab> inside configurations.',
+    _desc = 'Default launch + port configs generated from the current build files.',
     _detected = {
-      root = info.root,
+      root = '.',
+      rootName = vim.fs.basename(info.root),
+      buildTool = build_tool,
       maven = info.maven,
+      gradle = info.gradle,
       eclipse = info.eclipse,
       java = info.java,
     },
@@ -193,7 +213,14 @@ local function config_template(info)
         request = 'attach',
         hostName = '127.0.0.1',
         port = 5005,
-        projectName = project_name,
+        mainClass = main_class,
+      },
+      {
+        name = 'launch',
+        type = 'java',
+        request = 'launch',
+        cwd = '${projectRoot}',
+        mainClass = main_class,
       },
     },
   }
@@ -302,8 +329,7 @@ end
 local function normalize_config(config)
   local normalized = {}
   for key, value in pairs(config) do
-    if key ~= 'name'
-      and not tostring(key):match('^_')
+    if not tostring(key):match('^_')
       and value ~= nil
       and not (type(value) == 'string' and value == '')
     then
@@ -314,6 +340,19 @@ local function normalize_config(config)
   if type(normalized.port) == 'string' then
     normalized.port = tonumber(normalized.port) or normalized.port
   end
+
+  if normalized.type == 'java' and vim.islist(normalized.args) then
+    if #normalized.args == 0 then
+      normalized.args = nil
+    else
+      local parts = {}
+      for _, item in ipairs(normalized.args) do
+        table.insert(parts, tostring(item))
+      end
+      normalized.args = table.concat(parts, ' ')
+    end
+  end
+
   return normalized
 end
 

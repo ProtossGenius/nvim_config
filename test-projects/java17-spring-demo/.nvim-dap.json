@@ -1,0 +1,42 @@
+{
+  "_desc": "Default launch + port configs generated from the current build files.",
+  "_detected": {
+    "buildTool": "maven",
+    "eclipse": {
+      "projectName": "java17-spring-demo"
+    },
+    "gradle": [],
+    "java": {
+      "mainClasses": [
+        "com.example.demo.DemoApplication"
+      ],
+      "testClasses": [
+        "com.example.demo.service.UserServiceSmokeTest"
+      ]
+    },
+    "maven": {
+      "artifactId": "java17-spring-demo",
+      "groupId": "com.example",
+      "name": "java17-spring-demo"
+    },
+    "root": ".",
+    "rootName": "java17-spring-demo"
+  },
+  "configurations": [
+    {
+      "hostName": "127.0.0.1",
+      "mainClass": "com.example.demo.DemoApplication",
+      "name": "port",
+      "port": 5005,
+      "request": "attach",
+      "type": "java"
+    },
+    {
+      "cwd": "${projectRoot}",
+      "mainClass": "com.example.demo.DemoApplication",
+      "name": "launch",
+      "request": "launch",
+      "type": "java"
+    }
+  ]
+}

@@ -296,7 +296,6 @@ return {
       local luasnip = require('luasnip')
       local lsp = require('lsp-zero').preset({})
       local user_java = require('user.java')
-      local user_dap_snippets = require('user.dap_snippets')
       local user_lsp = require('user.lsp')
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
@@ -314,7 +313,6 @@ return {
 
       -- 初始化时加载一次
       load_local_snippets()
-      user_dap_snippets.setup()
 
       -- 当切换目录或进入新 buffer 时尝试再次加载
       vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter" }, {

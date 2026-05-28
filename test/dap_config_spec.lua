@@ -30,9 +30,13 @@ user_dap.edit_config(0)
 local generated = vim.json.decode(table.concat(vim.fn.readfile(config_path), '\n'))
 support.expect_equal('dap edit creates default attach config', generated.configurations[1].request, 'attach')
 support.expect_equal('dap edit creates attach port default', generated.configurations[1].port, 5005)
-support.expect_equal('dap edit keeps desc short', generated._desc, 'Type port<Tab> or launch<Tab> inside configurations.')
+support.expect_equal('dap edit fills attach main class', generated.configurations[1].mainClass, 'com.example.Main')
+support.expect_equal('dap edit creates default launch config', generated.configurations[2].request, 'launch')
+support.expect_equal('dap edit fills detected main class', generated.configurations[2].mainClass, 'com.example.Main')
+support.expect_equal('dap edit keeps desc short', generated._desc, 'Default launch + port configs generated from the current build files.')
 support.expect_equal('dap edit includes detected maven artifact', generated._detected.maven.artifactId, 'temp-artifact')
 support.expect_equal('dap edit includes detected eclipse name', generated._detected.eclipse.projectName, 'temp-eclipse-project')
+support.expect_equal('dap edit detects build tool', generated._detected.buildTool, 'maven')
 
 generated.configurations = {
   {
@@ -58,6 +62,7 @@ package.loaded['dap'] = {
 user_dap.start(0)
 
 support.expect_true('dap start passes config to dap.run', captured ~= nil)
+support.expect_equal('dap start preserves config name', captured.name, 'Run current file')
 support.expect_equal('dap start expands file placeholder', captured.program, source_path)
 support.expect_equal('dap start expands project root placeholder', captured.cwd, temp_root)
 support.expect_equal('dap start preserves args array', captured.args[1], '--flag')
@@ -85,6 +90,37 @@ end
 package.loaded['java'] = {
   dap = {
     config_dap = function()
+    end,
+  },
+}
+vim.lsp.get_clients = function()
+  return {
+    {
+      config = {
+        root_dir = temp_root,
+      },
+      workspace_folders = {},
+    },
+  }
+end
+
+user_dap.start(0)
+
+support.expect_equal('dap java attach keeps adapter type', captured.type, 'java')
+support.expect_equal('dap java attach does not warn with jdtls', warned, nil)
+
+vim.notify = original_notify
+package.loaded['java'] = original_java
+vim.lsp.get_clients = original_get_clients
+
+warned = nil
+captured = nil
+vim.notify = function(message)
+  warned = message
+end
+package.loaded['java'] = {
+  dap = {
+    config_dap = function()
       error('config_dap should not run without jdtls')
     end,
   },
@@ -95,8 +131,43 @@ end
 
 user_dap.start(0)
 
-support.expect_equal('dap java start warns when jdtls is missing', warned, 'Java debug requires an active jdtls client. Open a Java file in this project first, wait for jdtls to attach, then retry.')
-support.expect_equal('dap java start skips dap.run when jdtls is missing', captured, nil)
+support.expect_equal('dap java attach warns when jdtls is missing', warned, 'Java debug requires an active jdtls client. Open a Java file in this project first, wait for jdtls to attach, then retry.')
+support.expect_equal('dap java attach skips dap.run when jdtls is missing', captured, nil)
+
+vim.notify = original_notify
+package.loaded['java'] = original_java
+vim.lsp.get_clients = original_get_clients
+
+generated.configurations = {
+  {
+    name = 'Launch app',
+    type = 'java',
+    request = 'launch',
+    mainClass = 'com.example.demo.DemoApplication',
+  },
+}
+vim.fn.writefile(vim.split(vim.json.encode(generated), '\n', { plain = true }), config_path)
+
+warned = nil
+captured = nil
+vim.notify = function(message)
+  warned = message
+end
+package.loaded['java'] = {
+  dap = {
+    config_dap = function()
+      error('config_dap should not run without jdtls')
+    end,
+  },
+}
+vim.lsp.get_clients = function()
+  return {}
+end
+
+user_dap.start(0)
+
+support.expect_equal('dap java launch warns when jdtls is missing', warned, 'Java debug requires an active jdtls client. Open a Java file in this project first, wait for jdtls to attach, then retry.')
+support.expect_equal('dap java launch skips dap.run when jdtls is missing', captured, nil)
 
 vim.notify = original_notify
 package.loaded['java'] = original_java
