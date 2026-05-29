@@ -285,7 +285,16 @@ vim.api.nvim_create_autocmd("FileType", {
 
 -- Bind standard nvim-dap API keymaps directly
 local function dap_map(mode, lhs, rhs, desc)
-  vim.keymap.set(mode, lhs, rhs, { noremap = true, silent = true, desc = desc })
+  local wrapped_rhs = rhs
+  if type(rhs) == 'function' then
+    wrapped_rhs = function(...)
+      pcall(function()
+        require('user.audit').log_dap_action('User triggered keymap: ' .. lhs, { desc = desc })
+      end)
+      return rhs(...)
+    end
+  end
+  vim.keymap.set(mode, lhs, wrapped_rhs, { noremap = true, silent = true, desc = desc })
 end
 
 dap_map('n', '<leader>db', function() require('dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')

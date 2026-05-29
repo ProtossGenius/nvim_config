@@ -862,7 +862,62 @@ function M.attach_port(raw_port, path_or_bufnr)
   return true
 end
 
+local function ensure_listeners()
+  local dap = require('dap')
+  dap.listeners = dap.listeners or {}
+  dap.listeners.after = dap.listeners.after or {}
+  dap.listeners.before = dap.listeners.before or {}
+
+  dap.listeners.after.event_initialized = dap.listeners.after.event_initialized or {}
+  dap.listeners.before.event_stopped = dap.listeners.before.event_stopped or {}
+  dap.listeners.before.event_continued = dap.listeners.before.event_continued or {}
+  dap.listeners.before.event_exited = dap.listeners.before.event_exited or {}
+  dap.listeners.before.event_terminated = dap.listeners.before.event_terminated or {}
+
+  dap.listeners.after.event_initialized.user_dap_log = function(session, body)
+    log_dap_event('DAP session initialized.', {
+      session = tostring(session),
+      body = body,
+    })
+  end
+
+  dap.listeners.before.event_stopped.user_dap_log = function(session, body)
+    log_dap_event('DAP stopped event received.', { body = body })
+    
+    pcall(function()
+      local thread_id = body and body.threadId
+      if thread_id then
+        session:request('stackTrace', { threadId = thread_id, startFrame = 0, levels = 1 }, function(err, response)
+          if not err and response and response.stackFrames and response.stackFrames[1] then
+            local frame = response.stackFrames[1]
+            local source_path = frame.source and frame.source.path or nil
+            log_dap_event('Processed DAP stopped event.', {
+              thread_id = thread_id,
+              frame_id = frame.id,
+              source = source_path,
+              line = frame.line,
+            })
+          end
+        end)
+      end
+    end)
+  end
+
+  dap.listeners.before.event_continued.user_dap_log = function(session, body)
+    log_dap_event('DAP continued event received.', { body = body })
+  end
+
+  dap.listeners.before.event_exited.user_dap_log = function(session, body)
+    log_dap_event('DAP exited event received.', { body = body })
+  end
+
+  dap.listeners.before.event_terminated.user_dap_log = function(session, body)
+    log_dap_event('DAP terminated event received.', { body = body })
+  end
+end
+
 function M.setup()
+  ensure_listeners()
   vim.api.nvim_create_user_command('DebugConfigEdit', function()
     M.edit_config(0)
   end, {

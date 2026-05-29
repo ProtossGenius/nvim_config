@@ -4,7 +4,7 @@
 local M = {}
 
 local AUDIT_LOG_PATH = vim.fs.normalize(vim.fn.stdpath('state') .. '/user-audit.log')
-local DAP_LOG_PATH = vim.fs.normalize(vim.fn.stdpath('state') .. '/user-dap-actions.log')
+local DAP_LOG_PATH = vim.fs.normalize(vim.fn.stdpath('state') .. '/user-dap.log')
 
 local is_headless_cached = false
 
@@ -35,19 +35,32 @@ function M.log_module_load(modname)
   append_to_file(AUDIT_LOG_PATH, line)
 end
 
-function M.log_dap_action(action, details)
-  local time = os.date('%Y-%m-%dT%H:%M:%S')
-  local details_str = details and vim.inspect(details):gsub('%s+', ' ') or ''
-  local line = string.format('[%s] DAP_ACTION: %s %s', time, tostring(action), details_str)
+local function format_context(details)
+  if not details then
+    return '{}'
+  end
+  local ok, json = pcall(vim.json.encode, details)
+  if ok then
+    return json
+  end
+  return vim.inspect(details):gsub('%s+', ' ')
+end
+
+function M.log_dap_action(message, context)
+  local time = os.date('%Y-%m-%d %H:%M:%S')
+  local level = 'INFO'
+  local msg_lower = tostring(message):lower()
+  if msg_lower:find('warn') or msg_lower:find('fail') or msg_lower:find('terminated') or msg_lower:find('exited') or msg_lower:find('abort') or msg_lower:find('blocked') or msg_lower:find('error') then
+    level = 'WARN'
+  end
+  local context_str = format_context(context)
+  local line = string.format('%s [%s] %s %s', time, level, tostring(message), context_str)
   append_to_file(DAP_LOG_PATH, line)
   append_to_file(AUDIT_LOG_PATH, line)
 end
 
 function M.log_dap_event(event, body)
-  local time = os.date('%Y-%m-%dT%H:%M:%S')
-  local body_str = body and vim.inspect(body):gsub('%s+', ' ') or ''
-  local line = string.format('[%s] DAP_EVENT: %s %s', time, tostring(event), body_str)
-  append_to_file(DAP_LOG_PATH, line)
+  M.log_dap_action('DAP event: ' .. tostring(event), body)
 end
 
 function M.setup()
