@@ -251,6 +251,20 @@ local function project_root(bufnr)
   return project.root(bufnr)
 end
 
+function M.patch_jdtls_workspace_path()
+  local ok, lsp_utils = pcall(require, 'java-core.utils.lsp')
+  if not ok or lsp_utils._user_pid_workspace_patch then
+    return
+  end
+
+  local original = lsp_utils.get_jdtls_cache_data_path
+  lsp_utils.get_jdtls_cache_data_path = function(cwd)
+    local base = original(cwd)
+    return vim.fs.joinpath(base, 'nvim-' .. tostring(vim.fn.getpid()))
+  end
+  lsp_utils._user_pid_workspace_patch = true
+end
+
 local function is_java_project_root(root)
   if not root or root == '' then
     return false
@@ -310,7 +324,20 @@ local function jdtls_client_for_root(root)
   end
 end
 
-function M.ensure_project_jdtls(root)
+local function java_buffer_for_root(root)
+  local normalized_root = vim.fs.normalize(root)
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == '' then
+      local path = vim.api.nvim_buf_get_name(bufnr)
+      if path ~= '' and path:sub(-5) == '.java' and project_root(path) == normalized_root then
+        return bufnr
+      end
+    end
+  end
+end
+
+function M.ensure_project_jdtls(root, opts)
+  opts = opts or {}
   root = vim.fs.normalize(root or vim.fn.getcwd())
   if not is_java_project_root(root) then
     return false
@@ -323,21 +350,37 @@ function M.ensure_project_jdtls(root)
   local project_state = current.projects[root] or {}
   current.projects[root] = project_state
 
+  local existing_java_bufnr = java_buffer_for_root(root)
+  if existing_java_bufnr and not opts.force then
+   project_state.bufnr = existing_java_bufnr
+   project_state.anchor = vim.api.nvim_buf_get_name(existing_java_bufnr)
+   if not project_state.pending_retry then
+     project_state.pending_retry = true
+     vim.defer_fn(function()
+       project_state.pending_retry = false
+       if not jdtls_client_for_root(root) then
+         M.ensure_project_jdtls(root, { force = true })
+       end
+     end, 1500)
+   end
+   return true
+  end
+
   if project_state.starting then
-    return false
+   return false
   end
 
   project_state.anchor = project_state.anchor or first_java_file(root)
   if not project_state.anchor then
-    return false
+   return false
   end
 
   project_state.starting = true
   vim.schedule(function()
-    local bufnr = project_state.bufnr
-    if not bufnr or bufnr <= 0 or not vim.api.nvim_buf_is_valid(bufnr) then
-      bufnr = vim.fn.bufadd(project_state.anchor)
-      project_state.bufnr = bufnr
+   local bufnr = existing_java_bufnr or project_state.bufnr
+   if not bufnr or bufnr <= 0 or not vim.api.nvim_buf_is_valid(bufnr) then
+     bufnr = vim.fn.bufadd(project_state.anchor)
+     project_state.bufnr = bufnr
     end
 
     vim.fn.bufload(bufnr)
@@ -671,6 +714,8 @@ function M.attach_mapper_keymaps(bufnr)
 end
 
 function M.setup()
+  M.patch_jdtls_workspace_path()
+
   local group = vim.api.nvim_create_augroup('UserJavaMapper', { clear = true })
   local startup_group = vim.api.nvim_create_augroup('UserJavaAutostart', { clear = true })
 
@@ -705,7 +750,14 @@ function M.setup()
       if name == '' or vim.bo[args.buf].filetype ~= 'java' then
         return
       end
-      M.ensure_project_jdtls(project_root(args.buf))
+      local root = project_root(args.buf)
+      local current = get_state()
+      local project_state = current.projects[root]
+      if project_state then
+        project_state.bufnr = args.buf
+        project_state.anchor = name
+      end
+      M.ensure_project_jdtls(root)
     end,
   })
 
@@ -723,7 +775,7 @@ function M.setup()
       end
       vim.defer_fn(function()
         if not jdtls_client_for_root(root) then
-          M.ensure_project_jdtls(root)
+          M.ensure_project_jdtls(root, { force = true })
         end
       end, 300)
     end,

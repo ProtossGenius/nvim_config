@@ -36,6 +36,11 @@ public class UserController {
   @GetMapping("/{id}")
   public User getUser(@PathVariable Long id) {
     log.info("Handling GET /api/users/{}", id);
+    log.info("Handling GET /api/users/{}", id);
+    log.info("Handling GET /api/users/{}", id);
+    log.info("Handling GET /api/users/{}", id);
+    log.info("Handling GET /api/users/{}", id);
+    log.info("Handling GET /api/users/{}", id);
     return userService.getUser(id);
   }
 
