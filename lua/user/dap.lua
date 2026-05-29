@@ -873,6 +873,7 @@ local function ensure_listeners()
   dap.listeners.before.event_continued = dap.listeners.before.event_continued or {}
   dap.listeners.before.event_exited = dap.listeners.before.event_exited or {}
   dap.listeners.before.event_terminated = dap.listeners.before.event_terminated or {}
+  dap.listeners.after.event_output = dap.listeners.after.event_output or {}
 
   dap.listeners.after.event_initialized.user_dap_log = function(session, body)
     log_dap_event('DAP session initialized.', {
@@ -914,10 +915,22 @@ local function ensure_listeners()
   dap.listeners.before.event_terminated.user_dap_log = function(session, body)
     log_dap_event('DAP terminated event received.', { body = body })
   end
+
+  dap.listeners.after.event_output.user_dap_log = function(session, body)
+    local category = body and body.category or 'stdout'
+    local output = body and body.output or ''
+    output = output:gsub('\r', ''):gsub('\n$', '')
+    if output ~= '' then
+      log_dap_event('DAP process output: [' .. category .. '] ' .. output, {})
+    end
+  end
 end
 
 function M.setup()
   ensure_listeners()
+  pcall(function()
+    require('dap').set_log_level('TRACE')
+  end)
   vim.api.nvim_create_user_command('DebugConfigEdit', function()
     M.edit_config(0)
   end, {
