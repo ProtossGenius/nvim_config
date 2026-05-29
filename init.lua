@@ -183,3 +183,30 @@ vim.opt.wrap = true
 vim.opt.linebreak = true
 -- 配合 linebreak，设置折行后的缩进与上一行对齐
 vim.opt.breakindent = true
+
+-- Automatically start JDTLS if launched in a Java project root
+local function check_java_project_autostart()
+  local root_markers = { "pom.xml", "build.gradle", "build.gradle.kts", "gradlew", "mvnw" }
+  local is_java_project = false
+  for _, marker in ipairs(root_markers) do
+    if vim.fn.glob(marker) ~= "" then
+      is_java_project = true
+      break
+    end
+  end
+
+  if is_java_project then
+    local bufnr = vim.fn.bufadd("dummy_autostart.java")
+    vim.fn.bufload(bufnr)
+    vim.bo[bufnr].filetype = "java"
+    vim.bo[bufnr].bufhidden = "hide"
+    vim.bo[bufnr].buflisted = false
+  end
+end
+
+vim.api.nvim_create_autocmd("VimEnter", {
+  group = vim.api.nvim_create_augroup("JavaProjectAutostart", { clear = true }),
+  callback = function()
+    vim.defer_fn(check_java_project_autostart, 100)
+  end,
+})

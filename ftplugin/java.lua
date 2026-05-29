@@ -70,6 +70,70 @@ if lombok_jar == "" then
   lombok_jar = lombok_fallback_path
 end
 
+-- 4.8 Dynamic macOS JVM runtime scanner
+local runtimes = {}
+local seen_runtimes = {}
+
+local function add_jvm_runtime(path)
+  if not path or path == "" then return end
+  path = vim.fs.normalize(path)
+  if seen_runtimes[path] then return end
+
+  local java_bin = path .. "/bin/java"
+  if vim.fn.executable(java_bin) == 1 then
+    local major_version = nil
+    local release_file = path .. "/release"
+    local f = io.open(release_file, "r")
+    if f then
+      for line in f:lines() do
+        local ver_str = line:match('^JAVA_VERSION="([^"]+)"')
+        if ver_str then
+          local major = ver_str:match('^(%d+)')
+          if major == '1' then
+            major = ver_str:match('^1%.(%d+)')
+          end
+          major_version = tonumber(major)
+          break
+        end
+      end
+      f:close()
+    end
+
+    if not major_version then
+      local match = path:match("openjdk@(%d+)") or path:match("java-(%d+)") or path:match("jdk-(%d+)") or path:match("zulu-(%d+)")
+      if match then
+        major_version = tonumber(match)
+      end
+    end
+
+    if major_version then
+      local name = major_version == 8 and "JavaSE-1.8" or ("JavaSE-" .. major_version)
+      table.insert(runtimes, {
+        name = name,
+        path = path,
+      })
+      seen_runtimes[path] = true
+    end
+  end
+end
+
+local scan_globs = {
+  "/Library/Java/JavaVirtualMachines/*/Contents/Home",
+  home .. "/.sdkman/candidates/java/*",
+  "/opt/homebrew/Cellar/openjdk*/*/libexec/openjdk.jdk/Contents/Home",
+  "/opt/homebrew/opt/openjdk*/libexec/openjdk.jdk/Contents/Home",
+  "/usr/lib/jvm/*"
+}
+
+for _, pattern in ipairs(scan_globs) do
+  local paths = vim.fn.glob(pattern, true, true)
+  for _, p in ipairs(paths) do
+    if p ~= "" then
+      add_jvm_runtime(p)
+    end
+  end
+end
+
 -- 5. Build Configuration
 local cmd = {
   jdtls_bin,
@@ -79,44 +143,52 @@ if lombok_jar ~= "" then
   table.insert(cmd, "--jvm-arg=-javaagent:" .. lombok_jar)
 end
 
+local java_settings = {
+  signatureHelp = { enabled = true },
+  contentProvider = { preferred = "fernflower" },
+  completion = {
+    favoriteStaticMembers = {
+      "org.hamcrest.MatcherAssert.assertThat",
+      "org.hamcrest.Matchers.*",
+      "org.hamcrest.CoreMatchers.*",
+      "org.junit.jupiter.api.Assertions.*",
+      "java.util.Objects.requireNonNull",
+      "java.util.Objects.requireNonNullElse",
+      "org.mockito.Mockito.*"
+    },
+    filteredTypes = {
+      "com.sun.*",
+      "sun.*",
+      "jdk.*",
+      "org.graalvm.*",
+      "oracle.*"
+    }
+  },
+  sources = {
+    organizeImports = {
+      starThreshold = 9999,
+      staticStarThreshold = 9999,
+    },
+  },
+  codeGeneration = {
+    toString = {
+      template = "${object.className}[#${member.name()}=${member.value}, ${otherMembers}]"
+    },
+    useBlocks = true,
+  }
+}
+
+if #runtimes > 0 then
+  java_settings.configuration = {
+    runtimes = runtimes,
+  }
+end
+
 local config = {
   cmd = cmd,
   root_dir = root_dir,
   settings = {
-    java = {
-      signatureHelp = { enabled = true },
-      contentProvider = { preferred = "fernflower" },
-      completion = {
-        favoriteStaticMembers = {
-          "org.hamcrest.MatcherAssert.assertThat",
-          "org.hamcrest.Matchers.*",
-          "org.hamcrest.CoreMatchers.*",
-          "org.junit.jupiter.api.Assertions.*",
-          "java.util.Objects.requireNonNull",
-          "java.util.Objects.requireNonNullElse",
-          "org.mockito.Mockito.*"
-        },
-        filteredTypes = {
-          "com.sun.*",
-          "sun.*",
-          "jdk.*",
-          "org.graalvm.*",
-          "oracle.*"
-        }
-      },
-      sources = {
-        organizeImports = {
-          starThreshold = 9999,
-          staticStarThreshold = 9999,
-        },
-      },
-      codeGeneration = {
-        toString = {
-          template = "${object.className}[#${member.name()}=${member.value}, ${otherMembers}]"
-        },
-        useBlocks = true,
-      }
-    }
+    java = java_settings
   },
   init_options = {
     bundles = bundles

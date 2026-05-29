@@ -51,13 +51,35 @@ function M.setup()
     dap.continue()
   end, { desc = 'Start or continue debugging session' })
 
+  vim.api.nvim_create_user_command('DapTerminate', function()
+    dap.terminate()
+  end, { desc = 'Terminate active debugging session' })
+
   vim.api.nvim_create_user_command('DapAttach', function(opts)
     local arg = vim.trim(opts.args or '')
     local filetype = vim.bo.filetype
 
     if filetype == 'java' or arg ~= '' then
       -- Java Port Attach
-      local port = tonumber(arg) or 5005
+      local port
+      if arg ~= '' then
+        port = tonumber(arg)
+      else
+        -- Try to resolve from project root .dap_attach file
+        local project = require('user.project')
+        local root = project.root()
+        if root and root ~= '' then
+          local filepath = vim.fs.joinpath(root, '.dap_attach')
+          local f = io.open(filepath, 'r')
+          if f then
+            local content = f:read('*all')
+            f:close()
+            port = tonumber(vim.trim(content or ''))
+          end
+        end
+      end
+      port = port or 5005
+
       local config = {
         name = "Java Attach (Port " .. port .. ")",
         type = "java",

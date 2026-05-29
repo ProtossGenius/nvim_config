@@ -23,6 +23,16 @@ keymap('i', 'jj', '<ESC>', opts)
 -- 在终端模式下，将 jj 映射为退出终端模式
 vim.api.nvim_set_keymap('t', 'jj', '<C-\\><C-n>', { noremap = true, silent = true, desc = 'Exit terminal mode to Normal' })
 -- Normal Mode
+
+-- Normal mode Chinese colon '：' auto-switch to English input method
+keymap('n', '：', function()
+  if vim.fn.executable('im-select') == 1 then
+    vim.fn.system({ 'im-select', vim.g.mac_english_input_source or 'com.apple.keylayout.ABC' })
+  elseif vim.fn.executable('fcitx-remote') == 1 then
+    vim.fn.system('fcitx-remote -c')
+  end
+  vim.api.nvim_feedkeys(':', 'n', true)
+end, { desc = 'Switch to English and enter command mode' })
 -- Save buffer
 keymap({ 'i', 'n', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
 leader_map('n', '<leader>fs', '<cmd>w<cr>', 'Save file')
@@ -303,6 +313,8 @@ dap_map('n', '<leader>dn', function() require('dap').step_over() end, 'Debug: St
 dap_map('n', '<leader>di', function() require('dap').step_into() end, 'Debug: Step into')
 dap_map('n', '<leader>do', function() require('dap').step_out() end, 'Debug: Step out')
 dap_map('n', '<leader>dr', function() require('dap').repl.open() end, 'Debug: Open REPL console')
+dap_map('n', '<leader>da', '<cmd>DapAttach<cr>', 'Debug: Attach debugger (TCP port / PID)')
+dap_map('n', '<leader>dq', '<cmd>DapTerminate<cr>', 'Debug: Terminate session')
 
 -- Lightweight standard sidebar widgets built into nvim-dap
 dap_map('n', '<leader>dl', function()
