@@ -2,6 +2,9 @@
   "_desc": "Default launch + port configs generated from the current build files.",
   "_detected": {
     "buildTool": "maven",
+    "cmake": {
+      "executableTargets": []
+    },
     "eclipse": {
       "projectName": "java17-spring-demo"
     },
@@ -29,6 +32,18 @@
       "name": "port",
       "port": 5005,
       "request": "attach",
+      "stepFilters": {
+        "skipClasses": [
+          "$JDK",
+          "org.springframework.*",
+          "sun.*",
+          "jdk.*",
+          "com.sun.*"
+        ],
+        "skipConstructors": false,
+        "skipStaticInitializers": true,
+        "skipSynthetics": true
+      },
       "type": "java"
     },
     {
@@ -36,6 +51,18 @@
       "mainClass": "com.example.demo.DemoApplication",
       "name": "launch",
       "request": "launch",
+      "stepFilters": {
+        "skipClasses": [
+          "$JDK",
+          "org.springframework.*",
+          "sun.*",
+          "jdk.*",
+          "com.sun.*"
+        ],
+        "skipConstructors": false,
+        "skipStaticInitializers": true,
+        "skipSynthetics": true
+      },
       "type": "java"
     }
   ]

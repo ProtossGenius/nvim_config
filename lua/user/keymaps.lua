@@ -283,6 +283,8 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+require('user.dap_keymaps').setup()
+
 -- Dirvish explorer helpers
 local function dirvish_run_command()
   local file_path = vim.fn.getline('.')

@@ -290,6 +290,12 @@ local function java_config_template(info)
         hostName = '127.0.0.1',
         port = 5005,
         mainClass = main_class,
+        stepFilters = {
+          skipClasses = { '$JDK', 'org.springframework.*', 'sun.*', 'jdk.*', 'com.sun.*' },
+          skipSynthetics = true,
+          skipStaticInitializers = true,
+          skipConstructors = false,
+        },
       },
       {
         name = 'launch',
@@ -297,6 +303,12 @@ local function java_config_template(info)
         request = 'launch',
         cwd = '${projectRoot}',
         mainClass = main_class,
+        stepFilters = {
+          skipClasses = { '$JDK', 'org.springframework.*', 'sun.*', 'jdk.*', 'com.sun.*' },
+          skipSynthetics = true,
+          skipStaticInitializers = true,
+          skipConstructors = false,
+        },
       },
     },
   }
@@ -857,6 +869,12 @@ function M.attach_port(raw_port, path_or_bufnr)
     hostName = '127.0.0.1',
     port = port,
     mainClass = main_class,
+    stepFilters = {
+      skipClasses = { '$JDK', 'org.springframework.*', 'sun.*', 'jdk.*', 'com.sun.*' },
+      skipSynthetics = true,
+      skipStaticInitializers = true,
+      skipConstructors = false,
+    },
   }
 
   log_dap_event('Running direct Java port attach.', {

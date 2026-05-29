@@ -7,7 +7,7 @@ JAVA_PROJECT="${NVIM_TEST_JAVA_PROJECT:-$HOME/workspace/test-java}"
 run_spec() {
   local spec="$1"
   echo "==> $spec"
-  nvim --headless -u "$ROOT/init.lua" +"lua dofile('$ROOT/$spec')" +qa!
+  nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/$spec'); if not ok then print(err); vim.cmd('cquit! 1') else vim.cmd('qa!') end"
 }
 
 echo "==> startup smoke"
@@ -29,4 +29,4 @@ run_spec "test/java_autostart_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 
 echo "==> test/java_file_actions_integration.lua"
-NVIM_TEST_JAVA_PROJECT="$JAVA_PROJECT" nvim --headless -u "$ROOT/init.lua" +"lua dofile('$ROOT/test/java_file_actions_integration.lua')" +qa!
+NVIM_TEST_JAVA_PROJECT="$JAVA_PROJECT" nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/test/java_file_actions_integration.lua'); if not ok then print(err); vim.cmd('cquit! 1') else vim.cmd('qa!') end"

@@ -148,7 +148,7 @@ end
 
 local function effective_step_command(command, opts)
   opts = opts or {}
-  if command == 'stepOut' then
+  if command == 'stepOut' or command == 'next' then
     return command
   end
 
@@ -559,7 +559,14 @@ local function session_request(command, arguments, callback)
     callback('No active DAP session.')
     return
   end
-  session:request(command, arguments, callback)
+  local ok, err = pcall(session.request, session, command, arguments, callback)
+  if not ok then
+    log_warn('DAP session request threw error.', {
+      command = command,
+      error = tostring(err),
+    })
+    pcall(callback, 'Request failed: ' .. tostring(err))
+  end
 end
 
 local function target_file_for_breakpoint()
@@ -698,20 +705,28 @@ local function simple_type_name(type_name)
   return type_name:match('([%w_$]+)$') or type_name
 end
 
-local function should_summarize_type(type_name)
+local SPRING_BEAN_PATTERNS = {
+  'Controller$', 'Service$', 'ServiceImpl$', 'Repository$', 'Mapper$',
+  'Configuration$', 'Component$', 'Interceptor$', 'Filter$', 'Advisor$',
+  'Handler$', 'Resolver$', 'Factory$', 'Proxy$', 'CGLIB', '%$%$',
+}
+
+local function is_spring_bean(type_name)
   local simple = simple_type_name(type_name)
   if not simple then
     return false
   end
-  return simple:match('Controller$')
-    or simple:match('Service$')
-    or simple:match('ServiceImpl$')
-    or simple:match('Repository$')
-    or simple:match('Mapper$')
+  for _, pattern in ipairs(SPRING_BEAN_PATTERNS) do
+    if simple:match(pattern) then
+      return true
+    end
+  end
+  return false
 end
 
-local function inspect_variable(variable, depth, callback)
+local function inspect_variable(variable, depth, callback, opts)
   depth = depth or 0
+  opts = opts or {}
   local info = {
     type = variable and variable.type or nil,
     text = variable and variable.value or nil,
@@ -719,10 +734,12 @@ local function inspect_variable(variable, depth, callback)
   }
 
   local variables_reference = variable and variable.variablesReference or 0
-  if variables_reference > 0 and should_summarize_type(info.type) then
-    info.value = simple_type_name(info.type)
-    info.pretty = pretty_json(info.value)
-    info.inline = compact_json(info.value)
+  if opts.compact and variables_reference > 0 and is_spring_bean(info.type) and depth == 0 then
+    local short = simple_type_name(info.type) or info.text or '...'
+    info.value = short
+    info.pretty = short
+    info.inline = short
+    info.is_complex = true
     callback(info)
     return
   end
@@ -855,18 +872,16 @@ end
 
 local function extend_value_lines(lines, prefix, name, info)
   local label = prefix .. (name or '?')
-  if info.type and info.type ~= '' then
-    label = label .. ' <' .. info.type .. '>'
+  local short_type = simple_type_name(info.type)
+  if short_type and short_type ~= '' then
+    label = label .. ' <' .. short_type .. '>'
   end
-  local json_lines = vim.split(info.pretty or pretty_json(info.value), '\n', { plain = true })
-  if #json_lines == 1 then
-    table.insert(lines, label .. ' = ' .. json_lines[1])
+  if info.is_complex then
+    table.insert(lines, label)
     return
   end
-  table.insert(lines, label .. ' =')
-  for _, line in ipairs(json_lines) do
-    table.insert(lines, prefix .. '  ' .. line)
-  end
+  local display = info.inline or compact_json(info.value)
+  table.insert(lines, label .. ' = ' .. display)
 end
 
 local function refresh_locals_and_displays()
@@ -956,7 +971,7 @@ local function refresh_locals_and_displays()
               if pending_locals == 0 then
                 refresh_displays(local_lines)
               end
-            end)
+            end, { compact = true })
           end
           return
         end
@@ -1068,10 +1083,12 @@ local function render_stack_popup()
       table.insert(lines, string.format('[%d] %s', index, item.label))
     end
   end
+  table.insert(lines, '')
+  table.insert(lines, 'f=filter  Enter=jump  q=close')
   set_popup_lines(lines)
   vim.bo[state.popup.bufnr].modifiable = false
   if #items > 0 then
-    local cursor_line = math.min(math.max(vim.api.nvim_win_get_cursor(state.popup.winid)[1], 3), #lines)
+    local cursor_line = math.min(math.max(vim.api.nvim_win_get_cursor(state.popup.winid)[1], 3), #lines - 2)
     vim.api.nvim_win_set_cursor(state.popup.winid, { cursor_line, 0 })
   end
 end
@@ -1295,8 +1312,14 @@ function M.jump_selected_stack_frame()
     return
   end
   close_popup()
+  state.current_frame_id = item.frame.id
   local source = item.frame.source or {}
+  local winid = preferred_source_window()
+  if winid and vim.api.nvim_win_is_valid(winid) then
+    vim.api.nvim_set_current_win(winid)
+  end
   jump_to_location(source.path or source.name, item.frame.line or 1)
+  refresh_locals_and_displays()
 end
 
 function M.delete_selected_display()
@@ -1504,12 +1527,14 @@ function M.ensure_listeners()
     notify_step_termination('exited')
     clear_stop_state()
     state.pending_project_step = nil
+    state.last_action = nil
   end
   dap.listeners.before.event_terminated.user_dap_panels = function(_, body)
     log_warn('DAP terminated event received.', body)
     notify_step_termination('terminated')
     clear_stop_state()
     state.pending_project_step = nil
+    state.last_action = nil
   end
   state.listeners_attached = true
 

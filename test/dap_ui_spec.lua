@@ -206,8 +206,8 @@ ui.submit_popup()
 vim.wait(50)
 support.expect_equal('dap ui stores display expression from popup', ui._state.display_expressions[1], 'obj')
 local locals_text = table.concat(vim.api.nvim_buf_get_lines(ui._state.panels.locals.bufnr, 0, -1, false), '\n')
-support.expect_true('dap ui locals render display type', locals_text:find('obj <com.example.User>', 1, true) ~= nil)
-support.expect_true('dap ui locals render display json', locals_text:find('"id": 1', 1, true) ~= nil)
+support.expect_true('dap ui locals render display type', locals_text:find('obj <User>', 1, true) ~= nil)
+support.expect_true('dap ui locals render display value', locals_text:find('"id":', 1, true) ~= nil)
 support.expect_true('dap ui display popup shows type', table.concat(vim.api.nvim_buf_get_lines(ui._state.popup.bufnr, 0, -1, false), '\n'):find('Type: com.example.User', 1, true) ~= nil)
 
 ui.open_display_list()
@@ -231,7 +231,7 @@ vim.api.nvim_buf_set_lines(ui._state.popup.bufnr, popup_last - 1, popup_last, fa
 ui.submit_popup()
 vim.wait(50)
 eval_text = table.concat(vim.api.nvim_buf_get_lines(ui._state.popup.bufnr, 0, -1, false), '\n')
-support.expect_true('dap ui service object collapses to class name', eval_text:find('"UserService"', 1, true) ~= nil)
+support.expect_true('dap ui service object shows type in eval', eval_text:find('Type: com.example.demo.UserService', 1, true) ~= nil)
 
 ui.open_stack_popup()
 vim.wait(50)
@@ -298,6 +298,12 @@ support.expect_equal(
   vim.uv.fs_realpath(package.loaded['dap']._breakpoint_file),
   vim.uv.fs_realpath(tmpfile)
 )
+
+ui._state.session_stopped = true
+ui._state.last_action = 'next'
+package.loaded['dap'].listeners.before.event_terminated.user_dap_panels(nil, {})
+support.expect_equal('dap ui terminated clears last_action', ui._state.last_action, nil)
+support.expect_equal('dap ui terminated clears session_stopped', ui._state.session_stopped, false)
 
 vim.notify = original_notify
 package.loaded['dap'] = original_dap

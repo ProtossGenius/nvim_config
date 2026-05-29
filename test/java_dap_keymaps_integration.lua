@@ -171,7 +171,7 @@ push_stack_frame('jdt:/contents/spring-aop-6.1.11.jar/org.springframework.aop.fr
 ui.handle_stopped(nil, { threadId = 16 })
 vim.wait(80)
 ui.repeat_last_action()
-support.expect_equal('java dap repeat_last_action escapes unsafe jdt frame with stepOut', dap_stub._step_out, 1)
+support.expect_equal('java dap repeat_last_action keeps next in jdt frame instead of stepOut', dap_stub._step_over, 2)
 
 vim.api.nvim_win_close = original_win_close
 vim.lsp.get_clients = original_get_clients
