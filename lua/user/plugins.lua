@@ -275,10 +275,10 @@ return {
       { 'neovim/nvim-lspconfig' },
       { 'williamboman/mason.nvim' },
       { 'williamboman/mason-lspconfig.nvim' },
-      { 'nvim-java/nvim-java' },
-      { 'MunifTanjim/nui.nvim' },
+      { 'mfussenegger/nvim-jdtls' },
       { 'mfussenegger/nvim-dap' },
-      { 'JavaHello/spring-boot.nvim', commit = '218c0c26c14d99feca778e4d13f5ec3e8b1b60f0' },
+      { 'rcarriga/nvim-dap-ui' },
+      { 'nvim-neotest/nvim-nio' },
 
       -- Autocompletion
       { 'hrsh7th/nvim-cmp' },
@@ -294,13 +294,9 @@ return {
     },
     config = function()
       local luasnip = require('luasnip')
-      local lsp = require('lsp-zero').preset({})
-      local user_java = require('user.java')
+      local lsp = require('lsp-zero')
       local user_lsp = require('user.lsp')
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
-
-      require('java').setup(user_java.java_setup_config())
-      user_java.setup()
 
       -- 加载本地代码片段的辅助函数
       local function load_local_snippets()
@@ -321,12 +317,10 @@ return {
         end,
       })
 
-      local function on_attach(client, bufnr)
+      lsp.on_attach(function(client, bufnr)
         lsp.default_keymaps({ buffer = bufnr })
         user_lsp.on_attach(client, bufnr)
-      end
-
-      lsp.on_attach(on_attach)
+      end)
 
       -- Let lsp-zero manage mason and server setup
       require('mason').setup({})
@@ -339,15 +333,13 @@ return {
         },
         handlers = {
           lsp.default_setup,
-          jdtls = function() end,
         },
       })
 
-      vim.lsp.config('jdtls', vim.tbl_deep_extend('force', {
-        capabilities = capabilities,
-        on_attach = on_attach,
-      }, user_java.jdtls_config(user_lsp.jdtls_settings())))
-      vim.lsp.enable('jdtls')
+      -- Explicitly prevent native Neovim 0.11+ LSP autostart for jdtls
+      if vim.lsp.enable then
+        vim.lsp.enable('jdtls', false)
+      end
 
       -- Setup completion
       local cmp = require('cmp')

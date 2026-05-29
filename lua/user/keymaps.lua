@@ -313,8 +313,7 @@ dap_map('n', '<leader>dt', function()
   require('dap.ui.widgets').sidebar(require('dap.ui.widgets').frames).open()
 end, 'Debug: Show stack frames sidebar')
 
-dap_map('n', '<leader>Dc', function() require('user.dap').start() end, 'Debug: Start from project config')
-dap_map('n', '<leader>De', function() require('user.dap').edit_config() end, 'Debug: Edit project config')
+
 
 -- Dirvish explorer helpers
 local function dirvish_run_command()
