@@ -15,8 +15,19 @@ local CPP_EXTENSIONS = {
 }
 local lldb_dap_path
 
+local function log_dap_event(message, context)
+  local ok_ui, dap_ui = pcall(require, 'user.dap_ui')
+  if ok_ui and dap_ui.log_event then
+    dap_ui.log_event(message, context)
+  end
+end
+
 local function is_config_file(path)
   return path and path ~= '' and vim.fs.basename(path) == CONFIG_FILENAME
+end
+
+local function is_uri_like_path(path)
+  return type(path) == 'string' and path:match('^%a[%w+.-]*://') ~= nil
 end
 
 local function pretty_json(value, indent)
@@ -367,7 +378,7 @@ end
 local function source_context_buf(path_or_bufnr)
   if type(path_or_bufnr) == 'number' then
     local current_path = project.path_from_buf(path_or_bufnr) or ''
-    if current_path ~= '' and not is_config_file(current_path) then
+    if current_path ~= '' and not is_config_file(current_path) and not is_uri_like_path(current_path) then
       return path_or_bufnr
     end
   end
@@ -375,7 +386,7 @@ local function source_context_buf(path_or_bufnr)
   local alternate = vim.fn.bufnr('#')
   if alternate > 0 then
     local alternate_path = project.path_from_buf(alternate) or ''
-    if alternate_path ~= '' and not is_config_file(alternate_path) then
+    if alternate_path ~= '' and not is_config_file(alternate_path) and not is_uri_like_path(alternate_path) then
       return alternate
     end
   end
@@ -384,7 +395,7 @@ local function source_context_buf(path_or_bufnr)
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == '' then
       local path = project.path_from_buf(bufnr) or ''
-      if path ~= '' and not is_config_file(path) and project.root(path) == root then
+      if path ~= '' and not is_config_file(path) and not is_uri_like_path(path) and project.root(path) == root then
         return bufnr
       end
     end
@@ -644,20 +655,33 @@ end
 local function prepare_java_dap(path_or_bufnr)
   local ok, java = pcall(require, 'java')
   if not (ok and java.dap and java.dap.config_dap) then
+    log_dap_event('Skipping java.dap.config_dap because nvim-java DAP integration is unavailable.', {})
     return true
   end
 
   local source_bufnr = source_context_buf(path_or_bufnr)
   local source_path = project.path_from_buf(source_bufnr) or ''
-  local client = source_path ~= '' and find_jdtls_client(source_path) or nil
+  local root = project.root(path_or_bufnr)
+  if source_path ~= '' and not is_uri_like_path(source_path) then
+    root = project.root(source_path)
+  end
+
+  local client = root ~= '' and find_jdtls_client(root) or nil
+  if not client and source_path ~= '' then
+    client = find_jdtls_client(source_path)
+  end
   if not client then
+    log_dap_event('Cannot prepare Java DAP because no jdtls client is attached.', {
+      source = source_path,
+      root = root,
+    })
     vim.notify('Java debug requires an active jdtls client. Open a Java file in this project first, wait for jdtls to attach, then retry.', vim.log.levels.WARN)
     return false
   end
 
   local java_bufnr = source_bufnr
-  if source_path:sub(-5) ~= '.java' then
-    java_bufnr = find_java_buffer(project.root(source_path))
+  if source_path:sub(-5) ~= '.java' or is_uri_like_path(source_path) then
+    java_bufnr = find_java_buffer(root) or java_bufnr
   end
 
   local ok_config, err = pcall(function()
@@ -672,10 +696,21 @@ local function prepare_java_dap(path_or_bufnr)
   end)
 
   if not ok_config then
+    log_dap_event('java.dap.config_dap failed.', {
+      error = tostring(err),
+      source = source_path,
+      java_bufnr = java_bufnr,
+    })
     vim.notify('Java DAP setup failed: ' .. tostring(err), vim.log.levels.ERROR)
     return false
   end
 
+  log_dap_event('Prepared Java DAP successfully.', {
+    source = source_path,
+    root = root,
+    java_bufnr = java_bufnr,
+    client = client.name,
+  })
   return true
 end
 
@@ -689,7 +724,23 @@ local function start_config(config, path_or_bufnr)
     dap_ui.ensure_listeners()
   end
 
+  log_dap_event('Starting DAP configuration.', {
+    name = expanded.name,
+    type = expanded.type,
+    request = expanded.request,
+    root = vars.projectRoot,
+    cwd = expanded.cwd,
+    program = expanded.program,
+    mainClass = expanded.mainClass,
+    hostName = expanded.hostName,
+    port = expanded.port,
+  })
+
   if expanded.type == 'java' and not prepare_java_dap(path_or_bufnr) then
+    log_dap_event('Aborted DAP start because Java DAP preparation failed.', {
+      name = expanded.name,
+      root = vars.projectRoot,
+    })
     return
   end
 
@@ -701,18 +752,31 @@ local function start_config(config, path_or_bufnr)
     if expanded.request == 'attach' and not expanded.pid then
       pick_process(expanded, function(pid)
         if not pid then
+          log_dap_event('Cancelled process attach selection.', {
+            name = expanded.name,
+          })
           return
         end
 
         local attach_config = vim.deepcopy(expanded)
         attach_config.pid = pid
         attach_config.processQuery = nil
+        log_dap_event('Running DAP attach configuration.', {
+          name = attach_config.name,
+          pid = pid,
+          root = vars.projectRoot,
+        })
         dap.run(attach_config)
       end)
       return
     end
   end
 
+  log_dap_event('Running DAP configuration.', {
+    name = expanded.name,
+    type = expanded.type,
+    request = expanded.request,
+  })
   dap.run(expanded)
 end
 

@@ -169,6 +169,53 @@ user_dap.start(0)
 support.expect_equal('dap java launch warns when jdtls is missing', warned, 'Java debug requires an active jdtls client. Open a Java file in this project first, wait for jdtls to attach, then retry.')
 support.expect_equal('dap java launch skips dap.run when jdtls is missing', captured, nil)
 
+local java_source_path = vim.fs.normalize(temp_root .. '/src/main/java/com/example/Main.java')
+vim.fn.mkdir(vim.fn.fnamemodify(java_source_path, ':h'), 'p')
+vim.fn.writefile({
+  'package com.example;',
+  '',
+  'public class Main {',
+  '  public static void main(String[] args) {}',
+  '}',
+}, java_source_path)
+local java_bufnr = vim.fn.bufadd(java_source_path)
+vim.fn.bufload(java_bufnr)
+vim.bo[java_bufnr].filetype = 'java'
+
+local configured_from
+warned = nil
+captured = nil
+vim.notify = function(message)
+  warned = message
+end
+package.loaded['java'] = {
+  dap = {
+    config_dap = function()
+      configured_from = vim.fs.normalize(vim.api.nvim_buf_get_name(0))
+    end,
+  },
+}
+vim.lsp.get_clients = function()
+  return {
+    {
+      name = 'jdtls',
+      config = {
+        root_dir = temp_root,
+      },
+      workspace_folders = {},
+    },
+  }
+end
+
+vim.cmd('enew!')
+vim.api.nvim_buf_set_name(0, 'jdt:/contents/java.base/java.lang.String.class')
+vim.bo.filetype = 'java'
+user_dap.start(0)
+
+support.expect_equal('dap java launch from jdt buffer does not warn', warned, nil)
+support.expect_equal('dap java launch from jdt buffer still runs', captured and captured.type, 'java')
+support.expect_equal('dap java launch from jdt buffer configures real project java buffer', configured_from, java_source_path)
+
 vim.notify = original_notify
 package.loaded['java'] = original_java
 vim.lsp.get_clients = original_get_clients
