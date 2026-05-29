@@ -724,6 +724,48 @@ local function is_spring_bean(type_name)
   return false
 end
 
+local function format_basic_value(type_name, value_text)
+  if not type_name or not value_text then
+    return nil
+  end
+  local simple = simple_type_name(type_name)
+  if not simple then
+    return nil
+  end
+  local is_basic = false
+  local lower_simple = simple:lower()
+  if lower_simple == 'string' or lower_simple == 'long' or lower_simple == 'integer' or lower_simple == 'int'
+     or lower_simple == 'short' or lower_simple == 'byte' or lower_simple == 'float' or lower_simple == 'double'
+     or lower_simple == 'char' or lower_simple == 'character' or lower_simple == 'boolean' then
+    is_basic = true
+  end
+
+  if not is_basic then
+    return nil
+  end
+
+  if lower_simple == 'string' then
+    local s = value_text
+    if s:sub(1, 1) == '"' and s:sub(-1, -1) == '"' then
+      return s
+    end
+    if s:sub(1, 1) == "'" and s:sub(-1, -1) == "'" then
+      return '"' .. s:sub(2, -2) .. '"'
+    end
+    return '"' .. s .. '"'
+  end
+
+  if lower_simple == 'long' then
+    local s = value_text
+    if s:match('^%d+[Ll]$') then
+      return s:sub(1, -2)
+    end
+    return s
+  end
+
+  return value_text
+end
+
 local function inspect_variable(variable, depth, callback, opts)
   depth = depth or 0
   opts = opts or {}
@@ -745,8 +787,14 @@ local function inspect_variable(variable, depth, callback, opts)
   end
 
   if variables_reference <= 0 or depth >= 3 then
-    info.pretty = pretty_json(info.value)
-    info.inline = compact_json(info.value)
+    local basic_formatted = format_basic_value(info.type, info.text)
+    if basic_formatted then
+      info.pretty = basic_formatted
+      info.inline = basic_formatted
+    else
+      info.pretty = pretty_json(info.value)
+      info.inline = compact_json(info.value)
+    end
     callback(info)
     return
   end
@@ -855,7 +903,7 @@ local function render_display_picker()
   local lines = { 'Displays with values:', '' }
   for index, item in ipairs(items) do
     local suffix = item.info.type and item.info.type ~= '' and (' <' .. item.info.type .. '>') or ''
-    table.insert(lines, string.format('[%d] %s%s = %s', index, item.expr, suffix, item.info.inline))
+    table.insert(lines, string.format('[%d] %s%s %s', index, item.expr, suffix, item.info.inline))
   end
   if #items == 0 then
     close_popup()
@@ -881,7 +929,7 @@ local function extend_value_lines(lines, prefix, name, info)
     return
   end
   local display = info.inline or compact_json(info.value)
-  table.insert(lines, label .. ' = ' .. display)
+  table.insert(lines, label .. ' ' .. display)
 end
 
 local function refresh_locals_and_displays()
