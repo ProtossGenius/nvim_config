@@ -184,23 +184,23 @@ vim.opt.linebreak = true
 -- 配合 linebreak，设置折行后的缩进与上一行对齐
 vim.opt.breakindent = true
 
--- Automatically start JDTLS if launched in a Java project root
+-- Automatically start JDTLS if launched in a Java project with pom.xml at the root
 local function check_java_project_autostart()
-  local root_markers = { "pom.xml", "build.gradle", "build.gradle.kts", "gradlew", "mvnw" }
+  local root_markers = { ".root", ".project", ".git", "pom.xml" }
   local matches = vim.fs.find(root_markers, { upward = true, path = vim.fn.getcwd() })
-
   if #matches > 0 then
-    local bufnr = vim.fn.bufadd("dummy_autostart.java")
-    vim.fn.bufload(bufnr)
-    vim.bo[bufnr].filetype = "java"
-    vim.bo[bufnr].bufhidden = "hide"
-    vim.bo[bufnr].buflisted = false
+    local root_dir = vim.fs.dirname(matches[1])
+    local pom_path = vim.fs.joinpath(root_dir, "pom.xml")
+    if vim.fn.filereadable(pom_path) == 1 then
+      -- Use a system temporary path so we NEVER pollute the workspace
+      local temp_java = vim.fs.normalize(vim.fn.tempname() .. "_autostart.java")
+      local bufnr = vim.fn.bufadd(temp_java)
+      vim.fn.bufload(bufnr)
+      vim.bo[bufnr].filetype = "java"
+      vim.bo[bufnr].bufhidden = "hide"
+      vim.bo[bufnr].buflisted = false
+    end
   end
 end
 
-vim.api.nvim_create_autocmd("VimEnter", {
-  group = vim.api.nvim_create_augroup("JavaProjectAutostart", { clear = true }),
-  callback = function()
-    vim.defer_fn(check_java_project_autostart, 100)
-  end,
-})
+check_java_project_autostart()

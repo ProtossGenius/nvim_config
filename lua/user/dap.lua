@@ -52,7 +52,11 @@ function M.setup()
   end, { desc = 'Start or continue debugging session' })
 
   vim.api.nvim_create_user_command('DapTerminate', function()
-    dap.terminate()
+    local dap = require('dap')
+    local dapui = require('dapui')
+    pcall(dap.terminate)
+    pcall(dap.disconnect, { terminateDebuggee = false })
+    pcall(dapui.close)
   end, { desc = 'Terminate active debugging session' })
 
   vim.api.nvim_create_user_command('DapAttach', function(opts)
