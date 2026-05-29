@@ -37,11 +37,6 @@ support.expect_equal('dap edit keeps desc short', generated._desc, 'Default laun
 support.expect_equal('dap edit includes detected maven artifact', generated._detected.maven.artifactId, 'temp-artifact')
 support.expect_equal('dap edit includes detected eclipse name', generated._detected.eclipse.projectName, 'temp-eclipse-project')
 support.expect_equal('dap edit detects build tool', generated._detected.buildTool, 'maven')
-support.expect_true('dap edit attach config has stepFilters', generated.configurations[1].stepFilters ~= nil)
-support.expect_true('dap edit attach stepFilters has skipClasses', generated.configurations[1].stepFilters and vim.islist(generated.configurations[1].stepFilters.skipClasses))
-support.expect_equal('dap edit attach stepFilters skipSynthetics', generated.configurations[1].stepFilters and generated.configurations[1].stepFilters.skipSynthetics, true)
-support.expect_true('dap edit launch config has stepFilters', generated.configurations[2].stepFilters ~= nil)
-support.expect_true('dap edit launch stepFilters has skipClasses', generated.configurations[2].stepFilters and vim.islist(generated.configurations[2].stepFilters.skipClasses))
 
 generated.configurations = {
   {

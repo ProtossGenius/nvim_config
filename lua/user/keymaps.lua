@@ -283,7 +283,29 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
-require('user.dap_keymaps').setup()
+-- Bind standard nvim-dap API keymaps directly
+local function dap_map(mode, lhs, rhs, desc)
+  vim.keymap.set(mode, lhs, rhs, { noremap = true, silent = true, desc = desc })
+end
+
+dap_map('n', '<leader>db', function() require('dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
+dap_map('n', '<leader>dc', function() require('dap').continue() end, 'Debug: Continue / Start')
+dap_map('n', '<leader>dn', function() require('dap').step_over() end, 'Debug: Step over / Next')
+dap_map('n', '<leader>di', function() require('dap').step_into() end, 'Debug: Step into')
+dap_map('n', '<leader>do', function() require('dap').step_out() end, 'Debug: Step out')
+dap_map('n', '<leader>dr', function() require('dap').repl.open() end, 'Debug: Open REPL console')
+
+-- Lightweight standard sidebar widgets built into nvim-dap
+dap_map('n', '<leader>dl', function()
+  require('dap.ui.widgets').sidebar(require('dap.ui.widgets').scopes).open()
+end, 'Debug: Show variables/scopes sidebar')
+
+dap_map('n', '<leader>dt', function()
+  require('dap.ui.widgets').sidebar(require('dap.ui.widgets').frames).open()
+end, 'Debug: Show stack frames sidebar')
+
+dap_map('n', '<leader>Dc', function() require('user.dap').start() end, 'Debug: Start from project config')
+dap_map('n', '<leader>De', function() require('user.dap').edit_config() end, 'Debug: Edit project config')
 
 -- Dirvish explorer helpers
 local function dirvish_run_command()

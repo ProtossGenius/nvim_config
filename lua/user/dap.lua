@@ -16,10 +16,9 @@ local CPP_EXTENSIONS = {
 local lldb_dap_path
 
 local function log_dap_event(message, context)
-  local ok_ui, dap_ui = pcall(require, 'user.dap_ui')
-  if ok_ui and dap_ui.log_event then
-    dap_ui.log_event(message, context)
-  end
+  pcall(function()
+    require('user.audit').log_dap_action(message, context)
+  end)
 end
 
 local function is_config_file(path)
@@ -290,12 +289,6 @@ local function java_config_template(info)
         hostName = '127.0.0.1',
         port = 5005,
         mainClass = main_class,
-        stepFilters = {
-          skipClasses = { '$JDK', 'org.springframework.*', 'sun.*', 'jdk.*', 'com.sun.*' },
-          skipSynthetics = true,
-          skipStaticInitializers = true,
-          skipConstructors = false,
-        },
       },
       {
         name = 'launch',
@@ -303,12 +296,6 @@ local function java_config_template(info)
         request = 'launch',
         cwd = '${projectRoot}',
         mainClass = main_class,
-        stepFilters = {
-          skipClasses = { '$JDK', 'org.springframework.*', 'sun.*', 'jdk.*', 'com.sun.*' },
-          skipSynthetics = true,
-          skipStaticInitializers = true,
-          skipConstructors = false,
-        },
       },
     },
   }
@@ -730,11 +717,6 @@ local function start_config(config, path_or_bufnr)
   local dap = require('dap')
   local vars = placeholder_vars(path_or_bufnr)
   local expanded = expand_placeholders(normalize_config(config), vars)
-  local ok_ui, dap_ui = pcall(require, 'user.dap_ui')
-  if ok_ui and dap_ui.set_project_root then
-    dap_ui.set_project_root(vars.projectRoot)
-    dap_ui.ensure_listeners()
-  end
 
   log_dap_event('Starting DAP configuration.', {
     name = expanded.name,
@@ -869,12 +851,6 @@ function M.attach_port(raw_port, path_or_bufnr)
     hostName = '127.0.0.1',
     port = port,
     mainClass = main_class,
-    stepFilters = {
-      skipClasses = { '$JDK', 'org.springframework.*', 'sun.*', 'jdk.*', 'com.sun.*' },
-      skipSynthetics = true,
-      skipStaticInitializers = true,
-      skipConstructors = false,
-    },
   }
 
   log_dap_event('Running direct Java port attach.', {
