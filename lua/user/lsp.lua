@@ -198,6 +198,36 @@ function M.jdtls_settings()
       signatureHelp = {
         enabled = true,
       },
+      debug = {
+        settings = {
+          stepping = {
+            skipClasses = {
+              '$JDK',
+              '$Libraries',
+              'org.springframework.*',
+              'sun.*',
+              'jdk.*',
+              'com.sun.*',
+            },
+            skipConstructors = false,
+            skipStaticInitializers = true,
+            skipSynthetics = true,
+          },
+          stepFilters = {
+            skipClasses = {
+              '$JDK',
+              '$Libraries',
+              'org.springframework.*',
+              'sun.*',
+              'jdk.*',
+              'com.sun.*',
+            },
+            skipConstructors = false,
+            skipStaticInitializers = true,
+            skipSynthetics = true,
+          },
+        },
+      },
     },
   }
 end

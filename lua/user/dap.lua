@@ -289,6 +289,19 @@ local function java_config_template(info)
         hostName = '127.0.0.1',
         port = 5005,
         mainClass = main_class,
+        stepFilters = {
+          skipClasses = {
+            '$JDK',
+            '$Libraries',
+            'org.springframework.*',
+            'sun.*',
+            'jdk.*',
+            'com.sun.*',
+          },
+          skipConstructors = false,
+          skipStaticInitializers = true,
+          skipSynthetics = true,
+        },
       },
       {
         name = 'launch',
@@ -296,6 +309,19 @@ local function java_config_template(info)
         request = 'launch',
         cwd = '${projectRoot}',
         mainClass = main_class,
+        stepFilters = {
+          skipClasses = {
+            '$JDK',
+            '$Libraries',
+            'org.springframework.*',
+            'sun.*',
+            'jdk.*',
+            'com.sun.*',
+          },
+          skipConstructors = false,
+          skipStaticInitializers = true,
+          skipSynthetics = true,
+        },
       },
     },
   }
