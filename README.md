@@ -148,6 +148,7 @@
 - 当前 buffer / Dirvish 文件动作测试；
 - XML 标签联动与 Emmet 安装测试；
 - 直接 JSON DAP 配置模板与启动测试；
+- Java Spring demo 上的 DAP 键位集成测试（launch 选择、`SPC d s`、`SPC d n`、`<CR>` 重复）；
 - DAP 面板 / 自定义命令 / C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
 - `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。

@@ -4,6 +4,7 @@ local OUTPUT_PANEL_HEIGHT = 8
 local LOCALS_PANEL_HEIGHT = 10
 local POPUP_PROMPT = ''
 local PANEL_ORDER = { 'locals', 'output' }
+local LOG_PATH = vim.fs.normalize(vim.fn.stdpath('state') .. '/user-dap.log')
 
 local state = {
   listeners_attached = false,
@@ -17,10 +18,15 @@ local state = {
   project_root = nil,
   current_thread_id = nil,
   current_frame_id = nil,
+  current_source_path = nil,
+  current_frame_line = nil,
+  current_outside_project = false,
+  current_unsafe_source = false,
   pending_project_step = nil,
   last_visited_file = nil,
   source_winid = nil,
   last_action = nil,
+  session_stopped = false,
   popup = nil,
 }
 
@@ -29,6 +35,47 @@ local function normalize(path)
     return nil
   end
   return vim.fs.normalize(path)
+end
+
+local function format_log_context(context)
+  if not context then
+    return ''
+  end
+  local ok, rendered = pcall(vim.inspect, context)
+  if not ok or not rendered or rendered == '' then
+    return ''
+  end
+  rendered = rendered:gsub('%s+', ' '):gsub('^%s+', '')
+  return ' ' .. rendered
+end
+
+local function append_log(level, message, context)
+  local line = string.format(
+    '%s [%s] %s%s',
+    os.date('%Y-%m-%d %H:%M:%S'),
+    level,
+    message,
+    format_log_context(context)
+  )
+  pcall(vim.fn.writefile, { line }, LOG_PATH, 'a')
+end
+
+local function log_info(message, context)
+  append_log('INFO', message, context)
+end
+
+local function log_warn(message, context)
+  append_log('WARN', message, context)
+end
+
+local function clear_stop_state()
+  state.session_stopped = false
+  state.current_thread_id = nil
+  state.current_frame_id = nil
+  state.current_source_path = nil
+  state.current_frame_line = nil
+  state.current_outside_project = false
+  state.current_unsafe_source = false
 end
 
 local function starts_with_path(path, root)
@@ -49,6 +96,104 @@ local function is_project_managed_source(path)
     end
   end
   return true
+end
+
+local function is_uri_like_source(path)
+  return type(path) == 'string' and path:match('^%a[%w+.-]*://') ~= nil
+end
+
+local function describe_source(path, line)
+  if path and path ~= '' then
+    if line then
+      return string.format('%s:%s', path, line)
+    end
+    return path
+  end
+  if line then
+    return string.format('<unknown>:%s', line)
+  end
+  return '<unknown>'
+end
+
+local function analyze_frame_source(frame)
+  local source_path = frame.source and normalize(frame.source.path) or nil
+  local outside_project = false
+  local unsafe_source = false
+
+  if source_path then
+    outside_project = not is_project_managed_source(source_path)
+    if not outside_project and vim.uv.fs_stat(source_path) then
+      local line_count = #vim.fn.readfile(source_path)
+      if frame.line and line_count > 0 and frame.line > line_count then
+        outside_project = true
+        unsafe_source = true
+      end
+    elseif outside_project and (is_uri_like_source(source_path) or not vim.uv.fs_stat(source_path)) then
+      unsafe_source = true
+    end
+  else
+    outside_project = true
+    unsafe_source = true
+  end
+
+  return source_path, outside_project, unsafe_source
+end
+
+local function set_stop_context(source_path, line, outside_project, unsafe_source)
+  state.current_source_path = source_path
+  state.current_frame_line = line
+  state.current_outside_project = outside_project
+  state.current_unsafe_source = unsafe_source
+end
+
+local function effective_step_command(command, opts)
+  opts = opts or {}
+  if command == 'stepOut' then
+    return command
+  end
+
+  if opts.project_managed then
+    if state.current_outside_project then
+      log_warn('Switching project step to stepOut outside project code.', {
+        from = command,
+        source = state.current_source_path,
+        line = state.current_frame_line,
+        unsafe = state.current_unsafe_source,
+      })
+      return 'stepOut'
+    end
+    return command
+  end
+
+  if state.current_unsafe_source then
+    log_warn('Switching DAP step to stepOut for unsafe source frame.', {
+      from = command,
+      source = state.current_source_path,
+      line = state.current_frame_line,
+    })
+    return 'stepOut'
+  end
+
+  return command
+end
+
+local function notify_step_termination(kind)
+  local action = state.pending_project_step and state.pending_project_step.command or state.last_action
+  if not action then
+    return
+  end
+  if not state.pending_project_step and not state.current_unsafe_source then
+    return
+  end
+  vim.notify(
+    string.format(
+      'DAP session %s while handling %s near %s.',
+      kind,
+      action,
+      describe_source(state.current_source_path, state.current_frame_line)
+    ),
+    vim.log.levels.WARN
+  )
 end
 
 local function current_session()
@@ -823,24 +968,49 @@ end
 
 local function request_step(command)
   if not state.current_thread_id then
+    log_warn('Cannot request step without stopped thread.', {
+      command = command,
+      session_stopped = state.session_stopped,
+    })
     return false
   end
+  log_info('Requesting DAP step.', {
+    command = command,
+    thread_id = state.current_thread_id,
+    pending = state.pending_project_step and state.pending_project_step.command or nil,
+  })
   session_request(command, {
     threadId = state.current_thread_id,
   }, function(err)
     if err then
       state.pending_project_step = nil
+      log_warn('DAP step request failed.', {
+        command = command,
+        error = err,
+      })
       vim.notify('Step failed: ' .. tostring(err), vim.log.levels.ERROR)
     end
   end)
   return true
 end
 
-local function raw_step(command)
+local function raw_step(command, opts)
   local dap = require('dap')
-  if command == 'next' then
+  local effective_command = command
+  opts = opts or {}
+  if not opts.force_raw then
+    effective_command = effective_step_command(command)
+  end
+  state.pending_project_step = nil
+  state.session_stopped = false
+  log_info('Running raw DAP step.', {
+    command = effective_command,
+    requested = command,
+    last_action = state.last_action,
+  })
+  if effective_command == 'next' then
     dap.step_over()
-  elseif command == 'stepOut' then
+  elseif effective_command == 'stepOut' then
     dap.step_out()
   else
     dap.step_into()
@@ -849,10 +1019,15 @@ end
 
 local function project_step(command)
   if request_step(command) then
+    state.session_stopped = false
     state.pending_project_step = {
       command = command,
       remaining = 200,
     }
+    log_info('Starting project-managed DAP step.', {
+      command = command,
+      remaining = state.pending_project_step.remaining,
+    })
     return true
   end
   raw_step(command)
@@ -903,12 +1078,25 @@ end
 
 local function remember_action(name)
   state.last_action = name
+  log_info('Remembered DAP action.', { action = name })
 end
 
-local function run_named_action(name, remember)
+local function run_named_action(name, remember, opts)
+  opts = opts or {}
   if name == 'continue' or name == 'next' or name == 'step_project' or name == 'step_raw' or name == 'out_project' or name == 'out_raw' then
     if not current_session() then
+      log_warn('Blocked DAP action without active session.', { action = name })
       vim.notify('No active DAP session.', vim.log.levels.INFO)
+      return false
+    end
+    if not state.session_stopped then
+      log_info('Blocked DAP action while session is running.', {
+        action = name,
+        repeat_action = opts.repeat_action or false,
+      })
+      if not opts.silent_when_running then
+        vim.notify('DAP session is running. Wait for it to stop before stepping again.', vim.log.levels.INFO)
+      end
       return false
     end
   end
@@ -918,6 +1106,9 @@ local function run_named_action(name, remember)
   end
 
   if name == 'continue' then
+    state.pending_project_step = nil
+    state.session_stopped = false
+    log_info('Running DAP continue.', {})
     require('dap').continue()
     return true
   end
@@ -929,14 +1120,14 @@ local function run_named_action(name, remember)
     return project_step('stepIn')
   end
   if name == 'step_raw' then
-    raw_step('stepIn')
+    raw_step('stepIn', { force_raw = true })
     return true
   end
   if name == 'out_project' then
     return project_step('stepOut')
   end
   if name == 'out_raw' then
-    raw_step('stepOut')
+    raw_step('stepOut', { force_raw = true })
     return true
   end
   return false
@@ -1007,7 +1198,16 @@ function M.repeat_last_action()
   if not current_session() or not state.last_action then
     return false
   end
-  return run_named_action(state.last_action, false)
+  if not state.session_stopped then
+    log_info('Ignored DAP repeat while session is running.', {
+      action = state.last_action,
+    })
+    return true
+  end
+  return run_named_action(state.last_action, false, {
+    repeat_action = true,
+    silent_when_running = true,
+  })
 end
 
 function M.open_eval_popup()
@@ -1188,7 +1388,9 @@ end
 
 function M.handle_stopped(_, body)
   state.current_thread_id = body and body.threadId or state.current_thread_id
+  state.session_stopped = true
   if not state.current_thread_id then
+    log_warn('Received stopped event without thread id.', { body = body })
     return
   end
 
@@ -1204,25 +1406,23 @@ function M.handle_stopped(_, body)
 
     local frame = response.stackFrames[1]
     state.current_frame_id = frame.id
-    local source_path = frame.source and normalize(frame.source.path) or nil
-    local outside_project = false
-
-    if source_path then
-      outside_project = not is_project_managed_source(source_path)
-      if not outside_project and vim.uv.fs_stat(source_path) then
-        local line_count = #vim.fn.readfile(source_path)
-        if frame.line and line_count > 0 and frame.line > line_count then
-          outside_project = true
-        end
-      end
-    else
-      outside_project = true
-    end
+    local source_path, outside_project, unsafe_source = analyze_frame_source(frame)
+    set_stop_context(source_path, frame.line, outside_project, unsafe_source)
 
     local pending = state.pending_project_step
+    log_info('Processed DAP stopped event.', {
+      thread_id = state.current_thread_id,
+      frame_id = state.current_frame_id,
+      source = source_path,
+      line = frame.line,
+      outside_project = outside_project,
+      unsafe_source = unsafe_source,
+      pending_command = pending and pending.command or nil,
+      pending_remaining = pending and pending.remaining or nil,
+    })
     if pending and outside_project and pending.remaining > 0 then
       pending.remaining = pending.remaining - 1
-      request_step(pending.command)
+      request_step(effective_step_command(pending.command, { project_managed = true }))
       return
     end
 
@@ -1244,6 +1444,7 @@ function M.ensure_listeners()
   dap.listeners = dap.listeners or {}
   dap.listeners.after = dap.listeners.after or {}
   dap.listeners.before = dap.listeners.before or {}
+  dap.listeners.after.event_initialized = dap.listeners.after.event_initialized or {}
   dap.listeners.after.event_output = dap.listeners.after.event_output or {}
   dap.listeners.before.event_stopped = dap.listeners.before.event_stopped or {}
   dap.listeners.after.event_stopped = dap.listeners.after.event_stopped or {}
@@ -1251,6 +1452,13 @@ function M.ensure_listeners()
   dap.listeners.before.event_exited = dap.listeners.before.event_exited or {}
   dap.listeners.before.event_terminated = dap.listeners.before.event_terminated or {}
 
+  dap.listeners.after.event_initialized.user_dap_panels = function(session, body)
+    state.session_stopped = false
+    log_info('DAP session initialized.', {
+      session = tostring(session),
+      body = body,
+    })
+  end
   dap.listeners.after.event_output.user_dap_panels = function(_, body)
     vim.schedule(function()
       local category = body.category or 'output'
@@ -1272,6 +1480,7 @@ function M.ensure_listeners()
     end)
   end
   dap.listeners.before.event_stopped.user_dap_panels = function()
+    log_info('DAP stopped event received.', {})
     local current_win = vim.api.nvim_get_current_win()
     if not current_win or not vim.api.nvim_win_is_valid(current_win) then
       return
@@ -1287,16 +1496,19 @@ function M.ensure_listeners()
     end)
   end
   dap.listeners.before.event_continued.user_dap_panels = function()
+    log_info('DAP continued event received.', {})
+    clear_stop_state()
+  end
+  dap.listeners.before.event_exited.user_dap_panels = function(_, body)
+    log_warn('DAP exited event received.', body)
+    notify_step_termination('exited')
+    clear_stop_state()
     state.pending_project_step = nil
   end
-  dap.listeners.before.event_exited.user_dap_panels = function()
-    state.current_thread_id = nil
-    state.current_frame_id = nil
-    state.pending_project_step = nil
-  end
-  dap.listeners.before.event_terminated.user_dap_panels = function()
-    state.current_thread_id = nil
-    state.current_frame_id = nil
+  dap.listeners.before.event_terminated.user_dap_panels = function(_, body)
+    log_warn('DAP terminated event received.', body)
+    notify_step_termination('terminated')
+    clear_stop_state()
     state.pending_project_step = nil
   end
   state.listeners_attached = true
@@ -1339,5 +1551,7 @@ function M.ensure_listeners()
 end
 
 M._state = state
+M.log_path = LOG_PATH
+M.log_event = log_info
 
 return M

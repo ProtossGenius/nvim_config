@@ -14,6 +14,7 @@ local dap_stub = {
     after = {
       event_output = {},
       event_stopped = {},
+      event_initialized = {},
     },
     before = {
       event_stopped = {},
@@ -244,6 +245,7 @@ support.expect_true('dap ui stack popup filters to project frames', stack_text:f
 
 stacktrace_calls = 0
 ui.run_action('step_project')
+package.loaded['dap'].listeners.before.event_continued.user_dap_panels()
 vim.wait(50)
 ui.handle_stopped(nil, { threadId = 3 })
 vim.wait(50)
@@ -257,18 +259,28 @@ local request_trace = table.concat(request_names, ',')
 support.expect_true('dap ui project step issues stepIn request', request_trace:find('stepIn', 1, true) ~= nil)
 support.expect_true('dap ui project step inspects stack trace', request_trace:find('stepIn,stackTrace', 1, true) ~= nil)
 local step_in_count = 0
+local step_out_count = 0
 for _, name in ipairs(request_names) do
   if name == 'stepIn' then
     step_in_count = step_in_count + 1
+  elseif name == 'stepOut' then
+    step_out_count = step_out_count + 1
   end
 end
-support.expect_true('dap ui project step retries outside project', step_in_count >= 3)
+support.expect_equal('dap ui project step keeps initial stepIn only once', step_in_count, 1)
+support.expect_true('dap ui project step unwinds external frames with stepOut', step_out_count >= 2)
 
 ui.run_action('step_raw')
 support.expect_equal('dap ui raw step into bypasses project logic', package.loaded['dap']._step_into, 1)
+ui.handle_stopped(nil, { threadId = 3 })
+vim.wait(50)
 ui.run_action('next')
+support.expect_true('dap ui enter-repeat consumes running session input', ui.repeat_last_action())
+support.expect_equal('dap ui enter-repeat does not step while running', package.loaded['dap']._step_over, 1)
+ui.handle_stopped(nil, { threadId = 3 })
+vim.wait(50)
 ui.repeat_last_action()
-support.expect_equal('dap ui enter-repeat replays last action', package.loaded['dap']._step_over, 2)
+support.expect_equal('dap ui enter-repeat replays last action after stop', package.loaded['dap']._step_over, 2)
 local original_session = dap_stub.session
 dap_stub.session = function()
   return nil
