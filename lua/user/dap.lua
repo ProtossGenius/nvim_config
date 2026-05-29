@@ -59,9 +59,8 @@ function M.setup()
       if session.config and session.config.request == "attach" then
         pcall(dap.disconnect, { terminateDebuggee = false })
       else
-        pcall(dap.terminate, nil, nil, function()
-          pcall(dapui.close)
-        end)
+        pcall(dap.disconnect, { terminateDebuggee = true })
+        pcall(dap.close)
       end
     else
       pcall(dap.terminate)
