@@ -187,15 +187,9 @@ vim.opt.breakindent = true
 -- Automatically start JDTLS if launched in a Java project root
 local function check_java_project_autostart()
   local root_markers = { "pom.xml", "build.gradle", "build.gradle.kts", "gradlew", "mvnw" }
-  local is_java_project = false
-  for _, marker in ipairs(root_markers) do
-    if vim.fn.glob(marker) ~= "" then
-      is_java_project = true
-      break
-    end
-  end
+  local matches = vim.fs.find(root_markers, { upward = true, path = vim.fn.getcwd() })
 
-  if is_java_project then
+  if #matches > 0 then
     local bufnr = vim.fn.bufadd("dummy_autostart.java")
     vim.fn.bufload(bufnr)
     vim.bo[bufnr].filetype = "java"
