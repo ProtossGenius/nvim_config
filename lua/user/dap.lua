@@ -1,5 +1,29 @@
--- Minimal and standard DAP + DAP UI setup
--- Replaces old telemetry and complex project loaders with original DAP features.
+local function kill_project_debuggee_processes()
+  local project = require('user.project')
+  local root = project.root()
+  if not root or root == '' then return end
+  local project_name = vim.fs.basename(root)
+  local my_pid = vim.fn.getpid()
+
+  local handle = io.popen("ps -efww | grep java")
+  if not handle then return end
+  local output = handle:read("*all")
+  handle:close()
+
+  for line in output:gmatch("[^\r\n]+") do
+    if line:find("-agentlib:jdwp=transport=dt_socket", 1, true) 
+       and line:find(project_name, 1, true)
+       and line:find("bin/java", 1, true) then
+      local pid = line:match("^%s*%d+%s+(%d+)") or line:match("^%s*(%d+)")
+      if pid then
+        pid = tonumber(pid)
+        if pid and pid > 0 and pid ~= my_pid then
+          vim.fn.system("kill -9 " .. pid)
+        end
+      end
+    end
+  end
+end
 
 local M = {}
 
@@ -61,9 +85,11 @@ function M.setup()
       else
         pcall(dap.disconnect, { terminateDebuggee = true })
         pcall(dap.close)
+        pcall(kill_project_debuggee_processes)
       end
     else
       pcall(dap.terminate)
+      pcall(kill_project_debuggee_processes)
     end
     pcall(dapui.close)
   end, { desc = 'Terminate active debugging session' })
