@@ -122,7 +122,9 @@ local scan_globs = {
   home .. "/.sdkman/candidates/java/*",
   "/opt/homebrew/Cellar/openjdk*/*/libexec/openjdk.jdk/Contents/Home",
   "/opt/homebrew/opt/openjdk*/libexec/openjdk.jdk/Contents/Home",
-  "/usr/lib/jvm/*"
+  "/usr/lib/jvm/*",
+  home .. "/.local/share/nvim/nvim-java/packages/openjdk/*/jdk-*/Contents/Home",
+  home .. "/.local/share/nvim/nvim-java/packages/openjdk/*/jdk-*"
 }
 
 for _, pattern in ipairs(scan_globs) do
