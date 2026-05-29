@@ -1148,6 +1148,22 @@ end
 
 local function run_named_action(name, remember, opts)
   opts = opts or {}
+  pcall(function()
+    require('user.audit').log_dap_action(name, {
+      remember = remember,
+      opts = opts,
+      state = {
+        session_stopped = state.session_stopped,
+        current_thread_id = state.current_thread_id,
+        current_frame_id = state.current_frame_id,
+        last_action = state.last_action,
+        pending_project_step = state.pending_project_step and {
+          command = state.pending_project_step.command,
+          remaining = state.pending_project_step.remaining
+        } or nil,
+      }
+    })
+  end)
   if name == 'continue' or name == 'next' or name == 'step_project' or name == 'step_raw' or name == 'out_project' or name == 'out_raw' then
     if not current_session() then
       log_warn('Blocked DAP action without active session.', { action = name })
@@ -1529,6 +1545,7 @@ function M.ensure_listeners()
       session = tostring(session),
       body = body,
     })
+    pcall(function() require('user.audit').log_dap_event('initialized', body) end)
   end
   dap.listeners.after.event_output.user_dap_panels = function(_, body)
     vim.schedule(function()
@@ -1552,6 +1569,7 @@ function M.ensure_listeners()
   end
   dap.listeners.before.event_stopped.user_dap_panels = function()
     log_info('DAP stopped event received.', {})
+    pcall(function() require('user.audit').log_dap_event('stopped_before', {}) end)
     local current_win = vim.api.nvim_get_current_win()
     if not current_win or not vim.api.nvim_win_is_valid(current_win) then
       return
@@ -1562,16 +1580,19 @@ function M.ensure_listeners()
     end
   end
   dap.listeners.after.event_stopped.user_dap_panels = function(session, body)
+    pcall(function() require('user.audit').log_dap_event('stopped_after', body) end)
     vim.schedule(function()
       M.handle_stopped(session, body)
     end)
   end
   dap.listeners.before.event_continued.user_dap_panels = function()
     log_info('DAP continued event received.', {})
+    pcall(function() require('user.audit').log_dap_event('continued', {}) end)
     clear_stop_state()
   end
   dap.listeners.before.event_exited.user_dap_panels = function(_, body)
     log_warn('DAP exited event received.', body)
+    pcall(function() require('user.audit').log_dap_event('exited', body) end)
     notify_step_termination('exited')
     clear_stop_state()
     state.pending_project_step = nil
@@ -1579,6 +1600,7 @@ function M.ensure_listeners()
   end
   dap.listeners.before.event_terminated.user_dap_panels = function(_, body)
     log_warn('DAP terminated event received.', body)
+    pcall(function() require('user.audit').log_dap_event('terminated', body) end)
     notify_step_termination('terminated')
     clear_stop_state()
     state.pending_project_step = nil
