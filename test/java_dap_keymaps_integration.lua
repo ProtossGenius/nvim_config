@@ -2,7 +2,6 @@ local support = dofile(vim.fn.stdpath('config') .. '/test/spec_support.lua')
 
 package.loaded['user.dap'] = nil
 package.loaded['user.dap_ui'] = nil
-package.loaded['user.dap_keymaps'] = nil
 
 local original_dap = package.loaded['dap']
 local original_java = package.loaded['java']
@@ -127,26 +126,23 @@ end
 vim.cmd('set noswapfile')
 vim.cmd('edit ' .. vim.fn.fnameescape(controller_file))
 vim.cmd('lcd ' .. vim.fn.fnameescape(project_root))
-vim.g.mapleader = ' '
 
-local keymaps = require('user.dap_keymaps')
-keymaps.setup()
 local ui = require('user.dap_ui')
 ui.ensure_listeners()
 
-support.feed('<leader>Dc')
+vim.cmd('DebugStart')
 tracked_popup_win = vim.api.nvim_get_current_win()
 support.feed('2<CR>')
 vim.wait(120)
 
-support.expect_equal('java dap picker chooses launch config', dap_stub._run_config and dap_stub._run_config.name, 'launch')
-support.expect_equal('java dap picker explicitly closes popup window', popup_close_calls, 1)
-support.expect_true('java dap picker removes popup window', not vim.api.nvim_win_is_valid(tracked_popup_win))
+support.expect_equal('java dap start command chooses launch config', dap_stub._run_config and dap_stub._run_config.name, 'launch')
+support.expect_equal('java dap start command explicitly closes popup window', popup_close_calls, 1)
+support.expect_true('java dap start command removes popup window', not vim.api.nvim_win_is_valid(tracked_popup_win))
 
 ui.set_project_root(project_root)
 ui._state.session_stopped = true
 ui._state.current_thread_id = 16
-support.feed('<leader>ds')
+ui.run_action('step_project')
 push_stack_frame('jdt:/contents/spring-aop-6.1.11.jar/org.springframework.aop.framework/CglibAopProxy.class', 693)
 ui.handle_stopped(nil, { threadId = 16 })
 vim.wait(80)
@@ -168,14 +164,14 @@ ui._state.session_stopped = true
 push_stack_frame(service_impl_file, service_return_line)
 ui.handle_stopped(nil, { threadId = 16 })
 vim.wait(80)
-support.feed('<leader>dn')
-support.feed('<CR>')
-support.expect_equal('java dap enter repeat ignores running next at method boundary', dap_stub._step_over, 1)
+ui.run_action('next')
+ui.repeat_last_action()
+support.expect_equal('java dap repeat_last_action ignores running next at method boundary', dap_stub._step_over, 1)
 push_stack_frame('jdt:/contents/spring-aop-6.1.11.jar/org.springframework.aop.framework/CglibAopProxy.class', 694)
 ui.handle_stopped(nil, { threadId = 16 })
 vim.wait(80)
-support.feed('<CR>')
-support.expect_equal('java dap enter repeat escapes unsafe jdt frame with stepOut', dap_stub._step_out, 1)
+ui.repeat_last_action()
+support.expect_equal('java dap repeat_last_action escapes unsafe jdt frame with stepOut', dap_stub._step_out, 1)
 
 vim.api.nvim_win_close = original_win_close
 vim.lsp.get_clients = original_get_clients

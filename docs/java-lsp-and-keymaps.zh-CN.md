@@ -160,6 +160,23 @@
 | `SPC o h` | C/C++ 头源切换 | `<M-h>` |
 | `SPC o a` | Aerial 大纲开关 | `<leader>a` |
 
+## 4.5 调试
+
+当前仓库默认**不再自动注册自定义 DAP leader 键**，目的是把手工调试时的变量尽量压到 `nvim-dap` / `nvim-java` 本身，方便排查问题到底来自插件还是本仓库的包装逻辑。
+
+默认保留的入口改成命令：
+
+- `:DebugStart`：从 `.nvim-dap.json` 里选择并启动配置；
+- `:DebugConfigEdit`：创建/编辑项目级 `.nvim-dap.json`；
+- `:DebugToggleBreakpoint`：切换当前行断点；
+- `:DapAttach 5005`：按端口附加到本机 Java 进程，默认目标是 `127.0.0.1:{port}`。
+
+如果你只是想临时恢复以前那套 `SPC d*` / `SPC D*` / `<CR>` 映射，可以手动执行：
+
+```lua
+:lua require('user.dap_keymaps').setup()
+```
+
 ## 5. 第一次使用 Java 的注意事项
 
 第一次启用这套配置，或第一次真正打开 Java 项目时，`nvim-java` 可能会自动准备：

@@ -817,6 +817,57 @@ function M.toggle_breakpoint()
   require('dap').toggle_breakpoint()
 end
 
+local function parse_port_arg(raw)
+  local text = vim.trim(raw or '')
+  if text == '' then
+    return 5005
+  end
+
+  local port = tonumber(text)
+  if not port or port ~= math.floor(port) or port < 1 or port > 65535 then
+    return nil, 'DapAttach expects a TCP port, for example :DapAttach 5005'
+  end
+
+  return port
+end
+
+function M.attach_port(raw_port, path_or_bufnr)
+  local port, err = parse_port_arg(raw_port)
+  if not port then
+    vim.notify(err, vim.log.levels.WARN)
+    return false
+  end
+
+  local source_bufnr = source_context_buf(path_or_bufnr)
+  local info = detect_project_info(source_bufnr)
+  if detect_debug_kind(source_bufnr, info) ~= 'java' then
+    vim.notify('DapAttach currently supports Java projects only.', vim.log.levels.WARN)
+    return false
+  end
+
+  if not prepare_java_dap(source_bufnr) then
+    return false
+  end
+
+  local main_class = info.java.mainClasses[1] or 'com.example.Main'
+  local config = {
+    name = 'port',
+    type = 'java',
+    request = 'attach',
+    hostName = '127.0.0.1',
+    port = port,
+    mainClass = main_class,
+  }
+
+  log_dap_event('Running direct Java port attach.', {
+    port = port,
+    mainClass = main_class,
+    root = project.root(source_bufnr),
+  })
+  require('dap').run(config)
+  return true
+end
+
 function M.setup()
   vim.api.nvim_create_user_command('DebugConfigEdit', function()
     M.edit_config(0)
@@ -834,6 +885,13 @@ function M.setup()
     M.toggle_breakpoint()
   end, {
     desc = 'Toggle a DAP breakpoint on the current line',
+  })
+
+  vim.api.nvim_create_user_command('DapAttach', function(opts)
+    M.attach_port(opts.args, 0)
+  end, {
+    desc = 'Attach Java DAP to localhost:{port} (default 5005)',
+    nargs = '?',
   })
 end
 

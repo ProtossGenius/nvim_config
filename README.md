@@ -103,32 +103,19 @@
 
 ### 10. 调试配置
 - **调试入口**：
-  - `SPC D c`：从项目配置启动调试；
-  - `SPC D e`：创建/编辑项目级调试配置；
-  - `SPC d b`：切换当前源码行断点；
-  - `SPC d c`：continue；
-  - `SPC d n`：next / step over；
-  - `SPC d s`：持续 stepIn，直到回到项目内代码；
-  - `SPC d S`：原始 stepIn，不跳过非项目代码；
-  - `SPC d u`：step out，并尽量回到项目内代码；
-  - `SPC d U`：原始 step out；
-  - `SPC d o`：显示/隐藏底部输出面板；
-  - `SPC d l`：显示/隐藏 local 变量面板；
-  - `SPC d e`：打开 eval 弹窗；
-  - `SPC d a`：打开“新增 display”弹窗；
-  - `SPC d d`：打开 display 列表弹窗；
-  - `SPC d t`：打开 stack 弹窗。
-- **回车重复动作**：Normal 模式下按 `<CR>` 时，如果当前有活动 DAP session 且存在上一条 DAP 动作，就会重复上一条动作；否则保持默认 Enter 行为。
+  - `:DebugStart`：从项目配置启动调试；
+  - `:DebugConfigEdit`：创建/编辑项目级调试配置；
+  - `:DebugToggleBreakpoint`：切换当前源码行断点；
+  - `:DapAttach 5005`：按端口附加到本机 Java 进程，默认连接 `127.0.0.1:{port}`。
+- **自定义 DAP leader 键默认关闭**：为了便于隔离 `nvim-dap` / `nvim-java` 本身的问题，仓库默认不再注册 `SPC d*` / `SPC D*` / `<CR>` 这些自定义 DAP 键位。
+- **如需临时恢复旧键位**：可手动执行 `:lua require('user.dap_keymaps').setup()`。
 - **调试面板**：现在只保留两个普通 split 面板：最下层是 output，上一层是 locals；断点停住时如果当前焦点在 DAP 面板里，会先切回源码窗口，避免把 locals/output 面板直接替换成源码页。
 - **弹窗动作**：
-  - `SPC d e` 会弹出 eval 窗口，直接输入表达式后回车会在弹窗里显示 **类型名 + JSON 值**，`Esc` 退出；
-  - `SPC d a` 会弹出 display 添加窗口，直接输入表达式后回车会显示 **类型名 + JSON 值**，并把该表达式加入 locals 的 display 区域；
-  - `SPC d d` 会弹出 display 列表，只展示当前有合法值的那些表达式；在列表里可用 `d` / `D` 删除当前选中项；
-  - `SPC d t` 会弹出 stack 列表，可上下移动，按回车跳到对应栈帧位置，并可用 `f` 切换“只看本项目栈帧”过滤。
+  - 这些动作仍由 `lua/user/dap_ui.lua` 提供，但默认不再绑定到 `SPC d*`。
 - **LSP 跳到类**：`SPC l c` 会按类名发起 workspace symbol 搜索，并跳到匹配的类定义；在 Java/JDTLS 下也可跳到依赖里的 `.class` 类型。
 - **C/C++ 切换键**：在真实 C/C++ 项目里，`M-y` 和 `<leader>oh` 会切换头文件 / 源文件；`M-h` 改回统一的“切到左侧分屏”。
-- **快捷键文件**：所有 DAP 相关 leader 键都集中在 `lua/user/dap_keymaps.lua`，方便单独调整。
-- **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；`SPC D e` 首次打开时会自动生成默认配置。
+- **快捷键文件**：旧的 DAP leader 键仍保留在 `lua/user/dap_keymaps.lua`，但默认不自动加载。
+- **调试配置文件**：项目根目录下会使用隐藏文件 `.nvim-dap.json` 保存配置列表；`:DebugConfigEdit` 首次打开时会自动生成默认配置。
 - **默认模板**：
   - Java 项目默认生成 `port`（按端口 attach）和 `launch`（按 main class 启动）；
   - CMake C++ 项目默认生成 `launch` 和 `attach-process`；
@@ -147,8 +134,8 @@
 - 精确跳转 / Copy Reference 测试；
 - 当前 buffer / Dirvish 文件动作测试；
 - XML 标签联动与 Emmet 安装测试；
-- 直接 JSON DAP 配置模板与启动测试；
-- Java Spring demo 上的 DAP 键位集成测试（launch 选择、`SPC d s`、`SPC d n`、`<CR>` 重复）；
+- 直接 JSON DAP 配置模板、命令式启动与端口附加测试；
+- Java Spring demo 上的 DAP 命令/动作集成测试（launch 选择、`step_project`、`next`、`repeat_last_action`）；
 - DAP 面板 / 自定义命令 / C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
 - `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
