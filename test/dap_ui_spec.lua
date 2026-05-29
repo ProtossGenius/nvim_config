@@ -87,6 +87,14 @@ dap_stub._session = {
         })
         return
       end
+      if args and args.variablesReference == 41 then
+        callback(nil, {
+          variables = {
+            { name = 'repo', value = 'Repo', type = 'com.example.Repo', variablesReference = 0 },
+          },
+        })
+        return
+      end
       callback(nil, {
         variables = {
           { name = 'value', value = '7', type = 'int', variablesReference = 0 },
@@ -100,6 +108,14 @@ dap_stub._session = {
           result = 'User',
           type = 'com.example.User',
           variablesReference = 31,
+        })
+        return
+      end
+      if args and args.expression == 'svc' then
+        callback(nil, {
+          result = 'UserService',
+          type = 'com.example.demo.UserService',
+          variablesReference = 41,
         })
         return
       end
@@ -209,6 +225,12 @@ vim.wait(50)
 local eval_text = table.concat(vim.api.nvim_buf_get_lines(ui._state.popup.bufnr, 0, -1, false), '\n')
 support.expect_true('dap ui eval popup shows type', eval_text:find('Type: com.example.User', 1, true) ~= nil)
 support.expect_true('dap ui eval popup shows json value', eval_text:find('"name": "Neo"', 1, true) ~= nil)
+popup_last = vim.api.nvim_buf_line_count(ui._state.popup.bufnr)
+vim.api.nvim_buf_set_lines(ui._state.popup.bufnr, popup_last - 1, popup_last, false, { 'svc' })
+ui.submit_popup()
+vim.wait(50)
+eval_text = table.concat(vim.api.nvim_buf_get_lines(ui._state.popup.bufnr, 0, -1, false), '\n')
+support.expect_true('dap ui service object collapses to class name', eval_text:find('"UserService"', 1, true) ~= nil)
 
 ui.open_stack_popup()
 vim.wait(50)

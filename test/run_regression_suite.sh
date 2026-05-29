@@ -24,6 +24,7 @@ run_spec "test/dap_keymaps_spec.lua"
 run_spec "test/dap_ui_spec.lua"
 run_spec "test/dap_cpp_spec.lua"
 run_spec "test/cpp_keymap_scope_spec.lua"
+run_spec "test/java_autostart_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 
 echo "==> test/java_file_actions_integration.lua"

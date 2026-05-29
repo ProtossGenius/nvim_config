@@ -35,6 +35,22 @@ local function starts_with_path(path, root)
   return path == root or path:sub(1, #root + 1) == root .. '/'
 end
 
+local function is_project_managed_source(path)
+  local normalized = normalize(path)
+  if not normalized or not state.project_root or normalized:match('^%a[%w+.-]*://') then
+    return false
+  end
+  if not starts_with_path(normalized, state.project_root) then
+    return false
+  end
+  for _, marker in ipairs({ '/target/', '/build/', '/out/', '/.gradle/', '/generated/' }) do
+    if normalized:find(marker, 1, true) then
+      return false
+    end
+  end
+  return true
+end
+
 local function current_session()
   local ok, dap = pcall(require, 'dap')
   if not ok or not dap.session then
@@ -374,29 +390,29 @@ local function render_prompt_popup(lines)
   focus_popup_prompt()
 end
 
+local function jump_to_location(path_or_uri, line)
+  local target = path_or_uri
+  if not target or target == '' then
+    vim.notify('No source location available for this stack frame.', vim.log.levels.WARN)
+    return
+  end
+  if not target:match('^%a[%w+.-]*://') then
+    target = vim.uri_from_fname(target)
+  end
+  pcall(vim.lsp.util.jump_to_location, {
+    uri = target,
+    range = {
+      start = { math.max((line or 1) - 1, 0), 0 },
+      ['end'] = { math.max((line or 1) - 1, 0), 0 },
+    },
+  }, 'utf-16', true)
+end
+
 local function session_request(command, arguments, callback)
   local session = current_session()
   if not session then
     callback('No active DAP session.')
     return
-  end
-
-  local function jump_to_location(path_or_uri, line)
-    local target = path_or_uri
-    if not target or target == '' then
-      vim.notify('No source location available for this stack frame.', vim.log.levels.WARN)
-      return
-    end
-    if not target:match('^%a[%w+.-]*://') then
-      target = vim.uri_from_fname(target)
-    end
-    pcall(vim.lsp.util.jump_to_location, {
-      uri = target,
-      range = {
-        start = { math.max((line or 1) - 1, 0), 0 },
-        ['end'] = { math.max((line or 1) - 1, 0), 0 },
-      },
-    }, 'utf-16', true)
   end
   session:request(command, arguments, callback)
 end
@@ -530,6 +546,25 @@ local function scalar_value(text)
   return text
 end
 
+local function simple_type_name(type_name)
+  if not type_name or type_name == '' then
+    return nil
+  end
+  return type_name:match('([%w_$]+)$') or type_name
+end
+
+local function should_summarize_type(type_name)
+  local simple = simple_type_name(type_name)
+  if not simple then
+    return false
+  end
+  return simple:match('Controller$')
+    or simple:match('Service$')
+    or simple:match('ServiceImpl$')
+    or simple:match('Repository$')
+    or simple:match('Mapper$')
+end
+
 local function inspect_variable(variable, depth, callback)
   depth = depth or 0
   local info = {
@@ -539,6 +574,14 @@ local function inspect_variable(variable, depth, callback)
   }
 
   local variables_reference = variable and variable.variablesReference or 0
+  if variables_reference > 0 and should_summarize_type(info.type) then
+    info.value = simple_type_name(info.type)
+    info.pretty = pretty_json(info.value)
+    info.inline = compact_json(info.value)
+    callback(info)
+    return
+  end
+
   if variables_reference <= 0 or depth >= 3 then
     info.pretty = pretty_json(info.value)
     info.inline = compact_json(info.value)
@@ -823,7 +866,7 @@ local function stack_items(project_only)
   for _, frame in ipairs(frames) do
     local source = frame.source or {}
     local source_path = normalize(source.path) or source.path or source.name
-    local in_project = source_path and state.project_root and not source_path:match('^%a[%w+.-]*://') and starts_with_path(normalize(source_path), state.project_root) or false
+    local in_project = is_project_managed_source(source_path)
     if not project_only or in_project then
       local short_source = source_path and not tostring(source_path):match('^%a[%w+.-]*://') and vim.fn.fnamemodify(source_path, ':.') or (source_path or '<unknown>')
       table.insert(items, {
@@ -1164,8 +1207,8 @@ function M.handle_stopped(_, body)
     local source_path = frame.source and normalize(frame.source.path) or nil
     local outside_project = false
 
-    if source_path and state.project_root then
-      outside_project = not starts_with_path(source_path, state.project_root)
+    if source_path then
+      outside_project = not is_project_managed_source(source_path)
       if not outside_project and vim.uv.fs_stat(source_path) then
         local line_count = #vim.fn.readfile(source_path)
         if frame.line and line_count > 0 and frame.line > line_count then

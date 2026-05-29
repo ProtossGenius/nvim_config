@@ -241,6 +241,7 @@ local function get_state()
     runtimes = runtimes,
     default_runtime = default_runtime,
     launcher = launcher,
+    projects = {},
   }
 
   return state
@@ -248,6 +249,114 @@ end
 
 local function project_root(bufnr)
   return project.root(bufnr)
+end
+
+local function is_java_project_root(root)
+  if not root or root == '' then
+    return false
+  end
+  for _, marker in ipairs({
+    'pom.xml',
+    'mvnw',
+    'build.gradle',
+    'build.gradle.kts',
+    'settings.gradle',
+    'settings.gradle.kts',
+    'gradlew',
+  }) do
+    if is_file(vim.fs.joinpath(root, marker)) then
+      return true
+    end
+  end
+  return false
+end
+
+local function first_java_file(root)
+  for _, candidate_root in ipairs({
+    vim.fs.joinpath(root, 'src', 'main', 'java'),
+    vim.fs.joinpath(root, 'src', 'test', 'java'),
+    root,
+  }) do
+    if is_dir(candidate_root) then
+      local matches = vim.fs.find(function(name)
+        return name:match('%.java$') ~= nil
+      end, {
+        path = candidate_root,
+        type = 'file',
+        limit = 1,
+      })
+      if #matches > 0 then
+        return vim.fs.normalize(matches[1])
+      end
+    end
+  end
+end
+
+local function client_root(client)
+  if client.config and client.config.root_dir and client.config.root_dir ~= '' then
+    return vim.fs.normalize(client.config.root_dir)
+  end
+  if client.workspace_folders and client.workspace_folders[1] and client.workspace_folders[1].uri then
+    return vim.fs.normalize(vim.uri_to_fname(client.workspace_folders[1].uri))
+  end
+end
+
+local function jdtls_client_for_root(root)
+  local normalized_root = vim.fs.normalize(root)
+  for _, client in ipairs(vim.lsp.get_clients({ name = 'jdtls' })) do
+    if client_root(client) == normalized_root then
+      return client
+    end
+  end
+end
+
+function M.ensure_project_jdtls(root)
+  root = vim.fs.normalize(root or vim.fn.getcwd())
+  if not is_java_project_root(root) then
+    return false
+  end
+  if jdtls_client_for_root(root) then
+    return true
+  end
+
+  local current = get_state()
+  local project_state = current.projects[root] or {}
+  current.projects[root] = project_state
+
+  if project_state.starting then
+    return false
+  end
+
+  project_state.anchor = project_state.anchor or first_java_file(root)
+  if not project_state.anchor then
+    return false
+  end
+
+  project_state.starting = true
+  vim.schedule(function()
+    local bufnr = project_state.bufnr
+    if not bufnr or bufnr <= 0 or not vim.api.nvim_buf_is_valid(bufnr) then
+      bufnr = vim.fn.bufadd(project_state.anchor)
+      project_state.bufnr = bufnr
+    end
+
+    vim.fn.bufload(bufnr)
+    vim.bo[bufnr].bufhidden = 'hide'
+    vim.bo[bufnr].buflisted = false
+    if vim.bo[bufnr].filetype ~= 'java' then
+      vim.bo[bufnr].filetype = 'java'
+    end
+
+    vim.api.nvim_buf_call(bufnr, function()
+      vim.cmd('silent! LspStart jdtls')
+    end)
+
+    vim.defer_fn(function()
+      project_state.starting = false
+    end, 200)
+  end)
+
+  return true
 end
 
 local function basename(path)
@@ -563,6 +672,7 @@ end
 
 function M.setup()
   local group = vim.api.nvim_create_augroup('UserJavaMapper', { clear = true })
+  local startup_group = vim.api.nvim_create_augroup('UserJavaAutostart', { clear = true })
 
   vim.api.nvim_create_user_command('MapperSwitch', function(opts)
     M.jump_mapper_pair(opts.bang and 'vsplit' or 'edit')
@@ -576,6 +686,46 @@ function M.setup()
     pattern = '*',
     callback = function(args)
       M.attach_mapper_keymaps(args.buf)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ 'VimEnter', 'DirChanged' }, {
+    group = startup_group,
+    callback = function()
+      vim.defer_fn(function()
+        M.ensure_project_jdtls(vim.fn.getcwd())
+      end, 100)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('BufEnter', {
+    group = startup_group,
+    callback = function(args)
+      local name = vim.api.nvim_buf_get_name(args.buf)
+      if name == '' or vim.bo[args.buf].filetype ~= 'java' then
+        return
+      end
+      M.ensure_project_jdtls(project_root(args.buf))
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('LspDetach', {
+    group = startup_group,
+    callback = function(args)
+      local client_id = args.data and args.data.client_id or nil
+      local client = client_id and vim.lsp.get_client_by_id(client_id) or nil
+      if client and client.name ~= 'jdtls' then
+        return
+      end
+      local root = client and client_root(client) or project_root(args.buf)
+      if not root or not is_java_project_root(root) then
+        return
+      end
+      vim.defer_fn(function()
+        if not jdtls_client_for_root(root) then
+          M.ensure_project_jdtls(root)
+        end
+      end, 300)
     end,
   })
 end
