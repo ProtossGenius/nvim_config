@@ -220,6 +220,48 @@ local param_query = { type = 'UserQuery', full_type = 'UserQuery' }
 local fqn_query = my_test.resolve_param_type_fqn(param_query, mock_java_path)
 support.expect_equal('resolve_param_type_fqn from import 2', fqn_query, 'com.example.demo.dto.UserQuery')
 
+-- 8. Test XML tag attribute completion context
+local line_tag_attr = '<select id="findAll" '
+vim.api.nvim_buf_set_lines(0, 0, 1, false, { line_tag_attr })
+vim.api.nvim_win_set_cursor(0, { 1, #line_tag_attr })
+local ctx_ta, start_ta = my_test.get_completion_context(line_tag_attr, #line_tag_attr)
+support.expect_equal('get_completion_context tag attribute select', { ctx_ta, start_ta }, { 'tag_attribute_select', #line_tag_attr })
+
+-- 9. Test default method diagnostics validation
+local mock_java_methods_path = temp_dir .. '/src/main/java/com/example/demo/model/MethodsMapper.java'
+local mock_xml_methods_path = temp_dir .. '/src/main/java/com/example/demo/model/MethodsMapper.xml'
+vim.fn.writefile({
+  'package com.example.demo.model;',
+  'public interface MethodsMapper {',
+  '  default int insertUser() { return 0; }',
+  '  void updateByType();',
+  '}'
+}, mock_java_methods_path)
+
+vim.fn.writefile({
+  '<mapper namespace="com.example.demo.model.MethodsMapper">',
+  '  <insert id="insertUser">',
+  '  </insert>',
+  '</mapper>'
+}, mock_xml_methods_path)
+
+local mock_java_buf = vim.fn.bufadd(mock_java_methods_path)
+vim.fn.bufload(mock_java_buf)
+
+-- Inject mock resolve_mapper_xml
+local original_resolve_mapper_xml = require('user.java').resolve_mapper_xml
+require('user.java').resolve_mapper_xml = function() return mock_xml_methods_path end
+
+mybatis.check_default_methods(mock_java_buf)
+
+local diagnostics = vim.diagnostic.get(mock_java_buf)
+support.expect_equal('default methods diagnostics count', #diagnostics, 1)
+support.expect_equal('default methods diagnostics message', diagnostics[1].message, "Default method 'insertUser' should not have a corresponding SQL/statement block in XML.")
+
+-- Restore original_resolve_mapper_xml
+require('user.java').resolve_mapper_xml = original_resolve_mapper_xml
+vim.cmd('bwipeout! ' .. mock_java_buf)
+
 -- Cleanup project root mock and temp files
 require('user.project').root = original_root
 vim.fn.delete(temp_dir, 'rf')

@@ -433,3 +433,12 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set('n', '<leader>bd', dirvish_delete, { buffer = bufnr, silent = true, desc = 'Buffer: Delete selected file from disk' })
   end,
 })
+
+-- Terminal Buffer <CR> Rerun last command mapping
+vim.api.nvim_create_autocmd("TermOpen", {
+  group = vim.api.nvim_create_augroup("UserTerminalCR", { clear = true }),
+  callback = function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    vim.keymap.set('n', '<CR>', 'i<Up><CR>', { buffer = bufnr, noremap = true, silent = true, desc = 'Repeat last terminal command' })
+  end
+})

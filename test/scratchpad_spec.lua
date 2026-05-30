@@ -35,16 +35,8 @@ vim.api.nvim_buf_set_lines(current_buf, 9, 10, false, { '        System.out.prin
 -- Simulate pressing <CR> or running code
 vim.cmd('write')
 -- Trigger running
-local run_scratchpad = require('user.scratchpad')._test_run or function()
-  -- Call run_scratchpad programmatically by calling normal mode mapping or direct trigger
-  -- We can mock java compile/run or just trigger the execution!
-  -- Since java compilation in headless mode with local java compiler works if java is installed,
-  -- let's run it and verify the result!
-  vim.cmd('normal <leader>r')
-end
-
--- Wait a short moment or trigger it directly
-vim.cmd('normal <leader>r')
+local run_scratchpad = require('user.scratchpad')._test_run
+run_scratchpad(current_buf, current_name, 'java')
 
 -- Verify that the buffer now contains the comment result block
 local updated_content = table.concat(vim.api.nvim_buf_get_lines(current_buf, 0, -1, false), '\n')

@@ -30,13 +30,13 @@ function M.reset(lines, filetype, lang)
 
   if lang then
     local ok, parser = pcall(vim.treesitter.get_parser, 0, lang)
-    if ok then
-      parser:parse(true)
+    if ok and parser then
+      pcall(function() parser:parse(true) end)
     else
       pcall(vim.treesitter.start, 0, lang)
       local started, started_parser = pcall(vim.treesitter.get_parser, 0, lang)
-      if started then
-        started_parser:parse(true)
+      if started and started_parser then
+        pcall(function() started_parser:parse(true) end)
       end
     end
   end

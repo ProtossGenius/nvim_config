@@ -25,6 +25,45 @@ local CLASS_REF_ATTRS = {
   typehandler = true,
 }
 
+local TAG_ATTRIBUTES = {
+  select = { 'id', 'parameterType', 'resultType', 'resultMap', 'flushCache', 'useCache', 'timeout', 'fetchSize', 'statementType', 'resultSetType', 'databaseId', 'resultOrdered', 'resultSets' },
+  insert = { 'id', 'parameterType', 'flushCache', 'timeout', 'statementType', 'keyProperty', 'useGeneratedKeys', 'keyColumn', 'databaseId' },
+  update = { 'id', 'parameterType', 'flushCache', 'timeout', 'statementType', 'keyProperty', 'useGeneratedKeys', 'keyColumn', 'databaseId' },
+  delete = { 'id', 'parameterType', 'flushCache', 'timeout', 'statementType', 'databaseId' },
+  resultmap = { 'id', 'type', 'extends', 'autoMapping' },
+  result = { 'property', 'column', 'javaType', 'jdbcType', 'typeHandler' },
+  id = { 'property', 'column', 'javaType', 'jdbcType', 'typeHandler' },
+  association = { 'property', 'column', 'javaType', 'jdbcType', 'typeHandler', 'select', 'resultMap', 'foreignColumn', 'resultSet', 'columnPrefix', 'notNullColumn' },
+  collection = { 'property', 'column', 'javaType', 'ofType', 'jdbcType', 'typeHandler', 'select', 'resultMap', 'foreignColumn', 'resultSet', 'columnPrefix', 'notNullColumn' },
+  mapper = { 'namespace' },
+}
+
+local function find_current_xml_tag(bufnr, cursor_row, cursor_col)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, cursor_row + 1, false)
+  local start_row = math.max(0, cursor_row - 10)
+  local combined = {}
+  for i = start_row, cursor_row - 1 do
+    table.insert(combined, lines[i + 1])
+  end
+  local cursor_line = lines[cursor_row + 1] or ''
+  table.insert(combined, cursor_line:sub(1, cursor_col))
+  
+  local full_text = table.concat(combined, '\n')
+  local start_pos, tag_name = full_text:match('.*<()([^>%s/]+)[^>]*$')
+  if start_pos and tag_name then
+    return tag_name:lower()
+  end
+  return nil
+end
+
+local function get_defined_attributes(tag_text)
+  local attrs = {}
+  for attr in tag_text:gmatch('([%w_:-]+)%s*=') do
+    attrs[attr:lower()] = true
+  end
+  return attrs
+end
+
 -- 读取文件内容为行数组
 local function read_file_lines(path)
   local ok, lines = pcall(vim.fn.readfile, path)
@@ -224,6 +263,19 @@ local function get_completion_context(line, col)
       return 'resultmap', start_col
     elseif attr_name == 'refid' then
       return 'refid', start_col
+    end
+  end
+
+  -- Check if we are inside a MyBatis XML tag (for completing attribute names)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local cursor_row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local xml_tag = find_current_xml_tag(bufnr, cursor_row, col)
+  if xml_tag then
+    -- We are inside an XML tag, but not inside an attribute value.
+    -- Let's return the start of the current word being typed as the completion start.
+    local word_start = left_str:match('.*[%s"\']()([%w_:-]*)$')
+    if word_start then
+      return 'tag_attribute_' .. xml_tag, word_start - 1
     end
   end
 
@@ -805,6 +857,39 @@ function M.omnifunc(findstart, base)
           end
         end
       end
+    elseif ctx:match('^tag_attribute_') then
+      local tag_name = ctx:gsub('^tag_attribute_', '')
+      local attrs_candidates = TAG_ATTRIBUTES[tag_name] or {}
+      
+      -- Find all defined attributes in the current tag block up to the cursor
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      local row = cursor[1] - 1
+      local col = cursor[2]
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, row + 1, false)
+      local start_row = math.max(0, row - 10)
+      local combined = {}
+      for i = start_row, row - 1 do
+        table.insert(combined, lines[i + 1])
+      end
+      local cursor_line = lines[row + 1] or ''
+      table.insert(combined, cursor_line:sub(1, col))
+      local full_text = table.concat(combined, '\n')
+      
+      local tag_start = full_text:match('.*<[>%s/]*' .. vim.pesc(tag_name) .. '()')
+      local tag_text = tag_start and full_text:sub(tag_start) or ""
+      local defined = get_defined_attributes(tag_text)
+      
+      for _, attr in ipairs(attrs_candidates) do
+        if not defined[attr:lower()] then
+          if attr:lower():find(base_lower, 1, true) == 1 then
+            table.insert(matches, {
+              word = attr .. '=""',
+              abbr = attr,
+              menu = '[Attr]',
+            })
+          end
+        end
+      end
     end
 
     return matches
@@ -839,6 +924,64 @@ local function setup_autocomplete(bufnr)
     end
   })
 end
+
+local diagnostic_ns = vim.api.nvim_create_namespace('MyBatisMapperDiagnostics')
+
+local function get_xml_ids(xml_path)
+  local ids = {}
+  local lines = read_file_lines(xml_path)
+  for _, line in ipairs(lines) do
+    local id = line:match('id%s*=%s*"([^"]+)"') or line:match("id%s*=%s*'([^']+)'")
+    if id then
+      ids[id] = true
+    end
+  end
+  return ids
+end
+
+local function check_default_methods(bufnr)
+  if not bufnr or bufnr == 0 then
+    bufnr = vim.api.nvim_get_current_buf()
+  end
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+  
+  local file_path = vim.api.nvim_buf_get_name(bufnr)
+  if not file_path or file_path == '' or not file_path:match('Mapper%.java$') then
+    return
+  end
+
+  local java = require('user.java')
+  local xml_path = java.resolve_mapper_xml(bufnr)
+  if not xml_path or not is_file(xml_path) then
+    vim.diagnostic.set(diagnostic_ns, bufnr, {})
+    return
+  end
+
+  local xml_ids = get_xml_ids(xml_path)
+  local java_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local diagnostics = {}
+
+  for i, line in ipairs(java_lines) do
+    local method_name = line:match('%f[%w]default%f[%W]%s+.-%s+([%w_]+)%s*%(')
+    if method_name and xml_ids[method_name] then
+      table.insert(diagnostics, {
+        lnum = i - 1,
+        col = 0,
+        end_lnum = i - 1,
+        end_col = #line,
+        severity = vim.diagnostic.severity.ERROR,
+        message = string.format("Default method '%s' should not have a corresponding SQL/statement block in XML.", method_name),
+        source = "MyBatis",
+      })
+    end
+  end
+
+  vim.diagnostic.set(diagnostic_ns, bufnr, diagnostics)
+end
+
+M.check_default_methods = check_default_methods
 
 -- ============================================================================
 -- resultMap property 跳转与占位符跳转辅助函数
@@ -1139,6 +1282,51 @@ end
 -- ============================================================================
 
 function M.setup()
+  -- Register programmatic LuaSnip XML/MyBatis snippets
+  local luasnip_ok, ls = pcall(require, "luasnip")
+  if luasnip_ok then
+    local s = ls.snippet
+    local t = ls.text_node
+    local i = ls.insert_node
+    
+    ls.add_snippets("xml", {
+      s("select", {
+        t('<select id="'), i(1, "id"), t('" parameterType="'), i(2, "parameterType"), t('" resultType="'), i(3, "resultType"), t('">'),
+        t({ "", "    " }), i(0),
+        t({ "", "</select>" })
+      }),
+      s("selectMap", {
+        t('<select id="'), i(1, "id"), t('" parameterType="'), i(2, "parameterType"), t('" resultMap="'), i(3, "resultMap"), t('">'),
+        t({ "", "    " }), i(0),
+        t({ "", "</select>" })
+      }),
+      s("insert", {
+        t('<insert id="'), i(1, "id"), t('" parameterType="'), i(2, "parameterType"), t('">'),
+        t({ "", "    " }), i(0),
+        t({ "", "</insert>" })
+      }),
+      s("update", {
+        t('<update id="'), i(1, "id"), t('" parameterType="'), i(2, "parameterType"), t('">'),
+        t({ "", "    " }), i(0),
+        t({ "", "</update>" })
+      }),
+      s("delete", {
+        t('<delete id="'), i(1, "id"), t('" parameterType="'), i(2, "parameterType"), t('">'),
+        t({ "", "    " }), i(0),
+        t({ "", "</delete>" })
+      }),
+      s("resultMap", {
+        t('<resultMap id="'), i(1, "id"), t('" type="'), i(2, "type"), t('">'),
+        t({ "", "    <id column=\"id\" property=\"id\"/>" }),
+        t({ "", "    " }), i(0),
+        t({ "", "</resultMap>" })
+      }),
+      s("result", {
+        t('<result column="'), i(1, "column"), t('" property="'), i(2, "property"), t('"/>')
+      }),
+    })
+  end
+
   local group = vim.api.nvim_create_augroup('UserMyBatis', { clear = true })
 
   vim.api.nvim_create_autocmd({ 'BufEnter', 'FileType' }, {
@@ -1180,6 +1368,18 @@ function M.setup()
         vim.keymap.set('n', '<leader>lp', function()
           manual_trigger(bufnr)
         end, vim.tbl_extend('force', map_opts, { desc = 'MyBatis: 手动参数补全' }))
+      end)
+    end,
+  })
+  vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost', 'TextChanged', 'TextChangedI' }, {
+    group = group,
+    pattern = { '*Mapper.java' },
+    callback = function(args)
+      local bufnr = args.buf
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(bufnr) then
+          check_default_methods(bufnr)
+        end
       end)
     end,
   })

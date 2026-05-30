@@ -667,6 +667,38 @@ function M.jdtls_config(base_settings)
   return config
 end
 
+local function get_method_return_type(java_path, method_name)
+  local lines = read_file_lines(java_path)
+  local escaped_name = vim.pesc(method_name)
+  local pattern = '([%w_<>%.]+)%s+' .. escaped_name .. '%s*%('
+  for _, line in ipairs(lines) do
+    -- Remove annotations and modifiers
+    local clean = line:gsub('@%w+%s*%([^)]*%)', ''):gsub('@%w+', '')
+    clean = clean:gsub('%f[%w]public%f[%W]', ''):gsub('%f[%w]default%f[%W]', '')
+    clean = vim.trim(clean)
+    local ret = clean:match(pattern)
+    if ret then
+      return ret
+    end
+  end
+  return nil
+end
+
+local function get_tag_type(method_name)
+  local lower = method_name:lower()
+  if lower:match('^select') or lower:match('^get') or lower:match('^find') or lower:match('^query') or lower:match('^count') then
+    return 'select'
+  elseif lower:match('^insert') or lower:match('^add') or lower:match('^create') or lower:match('^save') then
+    return 'insert'
+  elseif lower:match('^update') or lower:match('^modify') or lower:match('^set') then
+    return 'update'
+  elseif lower:match('^delete') or lower:match('^remove') then
+    return 'delete'
+  else
+    return 'select'
+  end
+end
+
 function M.jump_mapper_pair(open_cmd)
   local bufnr = vim.api.nvim_get_current_buf()
 
@@ -677,7 +709,87 @@ function M.jump_mapper_pair(open_cmd)
       return
     end
 
-    open_at(xml_path, find_xml_line(xml_path, java_method_name(bufnr)), open_cmd)
+    local java_path = vim.api.nvim_buf_get_name(bufnr)
+    local method_name = java_method_name(bufnr)
+    if method_name then
+      -- Check if statement ID already exists in Mapper.xml
+      local exists = false
+      if is_file(xml_path) then
+        local xml_lines = read_file_lines(xml_path)
+        for _, line in ipairs(xml_lines) do
+          if line:match('id%s*=%s*"' .. vim.pesc(method_name) .. '"') or line:match("id%s*=%s*'" .. vim.pesc(method_name) .. "'") then
+            exists = true
+            break
+          end
+        end
+      end
+
+      if not exists then
+        -- Method not found in XML, let's create a new MyBatis XML block!
+        local mybatis = require('user.mybatis')
+        local params = mybatis.parse_method_params(java_path, method_name) or {}
+        
+        -- 1. Determine parameterType
+        local param_fqn = nil
+        if #params == 1 then
+          param_fqn = mybatis.resolve_param_type_fqn(params[1], java_path)
+        end
+
+        -- 2. Determine resultType
+        local result_fqn = nil
+        local return_type = get_method_return_type(java_path, method_name)
+        if return_type and return_type ~= 'void' and return_type ~= 'int' and return_type ~= 'long' then
+          local generic = return_type:match('<%s*([%w_%.]+)%s*>')
+          local class_name = generic or return_type
+          result_fqn = mybatis.resolve_type_fqn_in_file(class_name, java_path)
+        end
+
+        -- 3. Build XML block
+        local tag = get_tag_type(method_name)
+        local attrs = { string.format('id="%s"', method_name) }
+        if param_fqn then
+          table.insert(attrs, string.format('parameterType="%s"', param_fqn))
+        end
+        if tag == 'select' and result_fqn then
+          table.insert(attrs, string.format('resultType="%s"', result_fqn))
+        end
+
+        local attr_str = table.concat(attrs, ' ')
+        local indent = "  "
+        local xml_block = {
+          string.format('%s<%s %s>', indent, tag, attr_str),
+          string.format('%s  ', indent),
+          string.format('%s</%s>', indent, tag),
+        }
+
+        -- 4. Append XML block before </mapper>
+        local xml_lines = read_file_lines(xml_path)
+        local insert_index = nil
+        for i = #xml_lines, 1, -1 do
+          if xml_lines[i]:match('</mapper>') then
+            insert_index = i
+            break
+          end
+        end
+
+        if insert_index then
+          table.insert(xml_lines, insert_index, "")
+          for j, line in ipairs(xml_block) do
+            table.insert(xml_lines, insert_index + j, line)
+          end
+          vim.fn.writefile(xml_lines, xml_path)
+          
+          -- 5. Open XML file and place cursor inside the newly generated block!
+          local target_line = insert_index + 1
+          open_at(xml_path, target_line, open_cmd)
+          vim.api.nvim_win_set_cursor(0, { target_line, #indent + 2 })
+          vim.notify(string.format("Generated and jumped to XML block for '%s' in Mapper.xml", method_name), vim.log.levels.INFO)
+          return
+        end
+      end
+    end
+
+    open_at(xml_path, find_xml_line(xml_path, method_name), open_cmd)
     return
   end
 
@@ -711,6 +823,14 @@ function M.attach_mapper_keymaps(bufnr)
   vim.keymap.set('n', '<C-]>', jump_edit, vim.tbl_extend('force', map_opts, { desc = 'Jump mapper pair' }))
   vim.keymap.set('n', '<leader>li', jump_edit, vim.tbl_extend('force', map_opts, { desc = 'Mapper: Jump pair' }))
   vim.keymap.set('n', '<leader>lD', jump_vsplit, vim.tbl_extend('force', map_opts, { desc = 'Mapper: Jump pair in split' }))
+end
+
+function M.resolve_mapper_xml(bufnr)
+  return resolve_mapper_xml(bufnr)
+end
+
+function M.resolve_mapper_java(bufnr)
+  return resolve_mapper_java(bufnr)
 end
 
 function M.setup()

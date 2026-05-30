@@ -76,7 +76,10 @@ if vim.fn.has('nvim-0.12') == 1 then
       return
     end
 
-    return original_treesitter_start(bufnr, resolved_lang)
+    local ok, res = pcall(original_treesitter_start, bufnr, resolved_lang)
+    if ok then
+      return res
+    end
   end
 
   vim.api.nvim_create_autocmd('FileType', {
