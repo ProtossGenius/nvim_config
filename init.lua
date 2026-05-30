@@ -103,6 +103,11 @@ vim.ui.select = require('user.select').select
 -- C/C++ printf highlighting
 require('user.printf_highlight').setup()
 
+-- Java and MyBatis IDE enhancements
+require('user.java').setup()
+require('user.mybatis').setup()
+require('user.datasource').setup()
+
 -- Fcitx input method switching (skip if fcitx-remote is not installed)
 if vim.fn.executable('fcitx-remote') == 1 then
   local fcitx_status = ""

@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.Param;
 
 import com.example.demo.model.User;
+import com.example.demo.model.UserEnum;
 
 public interface UserMapper {
 
@@ -13,5 +14,10 @@ public interface UserMapper {
 
   Optional<User> findById(@Param("id") Long id);
 
-  int insert(@Param("user") User user);
+  default int insert(@Param("user") User user) {
+    return 0;
+  }
+
+  void updateStatus(Integer id, UserEnum eu);
+
 }

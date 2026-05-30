@@ -64,6 +64,7 @@ keymap('n', '<M-h>', '<C-w>h', { desc = 'Move to left window' })
 keymap('n', '<M-Down>', '<C-w>j', { desc = 'Move to lower window' })
 keymap('n', '<M-Up>', '<C-w>k', { desc = 'Move to upper window' })
 keymap('n', '<M-Right>', '<C-w>l', { desc = 'Move to right window' })
+keymap('n', '<M-l>', '<C-w>l', { desc = 'Move to right window' })
 keymap('n', '<M-j>', '<C-w>j', { desc = 'Move to lower window' })
 keymap('n', '<M-k>', '<C-w>k', { desc = 'Move to upper window' })
 keymap('t', '<M-Left>', '<C-\\><C-n><C-w>h', { desc = 'Move to left window' })
@@ -71,6 +72,7 @@ keymap('t', '<M-h>', '<C-\\><C-n><C-w>h', { desc = 'Move to left window' })
 keymap('t', '<M-Down>', '<C-\\><C-n><C-w>j', { desc = 'Move to lower window' })
 keymap('t', '<M-Up>', '<C-\\><C-n><C-w>k', { desc = 'Move to upper window' })
 keymap('t', '<M-Right>', '<C-\\><C-n><C-w>l', { desc = 'Move to right window' })
+keymap('t', '<M-l>', '<C-\\><C-n><C-w>l', { desc = 'Move to right window' })
 keymap('t', '<M-j>', '<C-\\><C-n><C-w>j', { desc = 'Move to lower window' })
 keymap('t', '<M-k>', '<C-\\><C-n><C-w>k', { desc = 'Move to upper window' })
 
@@ -229,6 +231,7 @@ leader_map('n', '<leader>md', function() term_exec('make debug') end, 'Make debu
 
 leader_map('n', '<leader>of', function() require('user.jump').prompt_jump() end, 'Open exact file/reference')
 leader_map('n', '<leader>or', function() require('user.jump').copy_reference() end, 'Copy reference')
+leader_map('n', '<leader>lv', function() require('user.scratchpad').open_scratchpad() end, 'Scratchpad: Open floating scratchpad')
 
 -- Aerial (Code Outline)
 keymap('n', '<leader>a', '<cmd>AerialToggle! left<cr>', { desc = 'Toggle Aerial outline' })
@@ -324,6 +327,9 @@ end, 'Debug: Show variables/scopes sidebar')
 dap_map('n', '<leader>dt', function()
   require('dap.ui.widgets').sidebar(require('dap.ui.widgets').frames).open()
 end, 'Debug: Show stack frames sidebar')
+
+dap_map('n', '<leader>Dc', '<cmd>DebugStart<cr>', 'Debug: Start session from local config')
+dap_map('n', '<leader>De', '<cmd>DebugConfigEdit<cr>', 'Debug: Create or edit local configs')
 
 
 
