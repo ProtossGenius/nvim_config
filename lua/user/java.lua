@@ -727,12 +727,13 @@ function M.jump_mapper_pair(open_cmd)
       if not exists then
         -- Method not found in XML, let's create a new MyBatis XML block!
         local mybatis = require('user.mybatis')
-        local params = mybatis.parse_method_params(java_path, method_name) or {}
+        local my_test = mybatis._test
+        local params = my_test.parse_method_params(java_path, method_name) or {}
         
         -- 1. Determine parameterType
         local param_fqn = nil
         if #params == 1 then
-          param_fqn = mybatis.resolve_param_type_fqn(params[1], java_path)
+          param_fqn = my_test.resolve_param_type_fqn(params[1], java_path)
         end
 
         -- 2. Determine resultType
@@ -741,7 +742,7 @@ function M.jump_mapper_pair(open_cmd)
         if return_type and return_type ~= 'void' and return_type ~= 'int' and return_type ~= 'long' then
           local generic = return_type:match('<%s*([%w_%.]+)%s*>')
           local class_name = generic or return_type
-          result_fqn = mybatis.resolve_type_fqn_in_file(class_name, java_path)
+          result_fqn = my_test.resolve_type_fqn_in_file(class_name, java_path)
         end
 
         -- 3. Build XML block

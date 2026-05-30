@@ -304,11 +304,25 @@ local function dap_map(mode, lhs, rhs, desc)
       pcall(function()
         require('user.audit').log_dap_action('User triggered keymap: ' .. lhs, { desc = desc })
       end)
+      -- Save step/continue debugging actions to _G.last_dap_action
+      if lhs == '<leader>dn' or lhs == '<leader>di' or lhs == '<leader>do' or lhs == '<leader>dc' then
+        _G.last_dap_action = rhs
+      end
       return rhs(...)
     end
   end
   vim.keymap.set(mode, lhs, wrapped_rhs, { noremap = true, silent = true, desc = desc })
 end
+
+-- DAP Repeat last action with Enter (<CR>)
+keymap('n', '<CR>', function()
+  local dap_ok, dap = pcall(require, 'dap')
+  if dap_ok and dap.session() and _G.last_dap_action then
+    _G.last_dap_action()
+  else
+    vim.cmd('normal! +')
+  end
+end, { noremap = true, silent = true, desc = 'DAP: Repeat last debug step or standard Enter' })
 
 dap_map('n', '<leader>db', function() require('dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
 dap_map('n', '<leader>dc', function() require('dap').continue() end, 'Debug: Continue / Start')
