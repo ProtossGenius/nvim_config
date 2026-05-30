@@ -14,9 +14,7 @@ public interface UserMapper {
 
   Optional<User> findById(@Param("id") Long id);
 
-  default int insert(@Param("user") User user) {
-    return 0;
-  }
+  int insert(@Param("user") User user) ;
 
   void updateStatus(Integer id, UserEnum eu);
 
