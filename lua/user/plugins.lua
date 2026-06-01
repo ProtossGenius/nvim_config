@@ -329,6 +329,9 @@ return {
           'clangd',
           'ts_ls',
           'gopls',
+          'jdtls',
+          'java-debug-adapter',
+          'java-test',
           'rust_analyzer',
         },
         handlers = {
