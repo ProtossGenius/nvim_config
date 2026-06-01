@@ -5,7 +5,7 @@ local M = {
   providers = {
     ollama = {
       kind = 'ollama',
-      base_url = 'http://127.0.0.1:11434',
+      base_url = 'http://127.0.0.1:11434/',
     },
     ds4 = {
       kind = 'openai',
@@ -14,7 +14,7 @@ local M = {
   },
   models = {
     translate = 'ollama/translategemma:4b',
-    ask = 'ds4/auto',
+    ask = 'ollama/gemma4:31b',
   },
 }
 
