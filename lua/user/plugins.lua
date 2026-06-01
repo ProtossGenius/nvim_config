@@ -324,14 +324,27 @@ return {
 
       -- Let lsp-zero manage mason and server setup
       require('mason').setup({})
+
+      -- Automatically install DAP/non-LSP packages via Mason registry if missing
+      vim.schedule(function()
+        local registry = require('mason-registry')
+        local tools = { 'java-debug-adapter', 'java-test' }
+        for _, tool in ipairs(tools) do
+          if registry.has_package(tool) then
+            local p = registry.get_package(tool)
+            if not p:is_installed() then
+              p:install()
+            end
+          end
+        end
+      end)
+
       require('mason-lspconfig').setup({
         ensure_installed = {
           'clangd',
           'ts_ls',
           'gopls',
           'jdtls',
-          'java-debug-adapter',
-          'java-test',
           'rust_analyzer',
         },
         handlers = {
