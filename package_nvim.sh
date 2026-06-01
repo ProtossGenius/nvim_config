@@ -62,13 +62,13 @@ data_root="$bundle_root/data/nvim"
 
 mkdir -p "$config_root" "$data_root"
 
-cp -a \
-  "$script_dir/README.md" \
-  "$script_dir/docs" \
-  "$script_dir/init.lua" \
-  "$script_dir/lazy-lock.json" \
-  "$script_dir/lua" \
-  "$config_root/"
+for entry in "$script_dir"/* "$script_dir"/.*; do
+  [ -e "$entry" ] || continue
+  name=$(basename "$entry")
+  if [ "$name" != "." ] && [ "$name" != ".." ] && [ "$name" != ".git" ] && [ "$name" != "target" ]; then
+    cp -a "$entry" "$config_root/"
+  fi
+done
 
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 source_data_root="$data_home/nvim"
