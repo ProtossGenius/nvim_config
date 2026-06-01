@@ -36,7 +36,7 @@ else
 end
 
 -- Path for java-test (optional helper)
-local test_bundle_path = mason_path .. "/java-test/extension/server/*.jar"
+local test_bundle_path = mason_path .. "/java-test/extension/server/com.microsoft.java.test.plugin-*.jar"
 local test_bundles = vim.fn.glob(test_bundle_path, true)
 if test_bundles ~= "" then
   for _, bundle in ipairs(vim.split(test_bundles, "\n")) do

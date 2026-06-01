@@ -77,6 +77,16 @@ escape_sed_replacement() {
   printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
 }
 
+sed_in_place() {
+  local expr="$1"
+  local file="$2"
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "$expr" "$file"
+  else
+    sed -i "$expr" "$file"
+  fi
+}
+
 copy_data_dir() {
   local name="$1"
   local source="$source_data_root/$name"
@@ -161,7 +171,7 @@ rewrite_embedded_data_paths() {
   to_escaped=$(escape_sed_replacement "$target_root")
 
   while IFS= read -r -d '' path; do
-    sed -i "s|$from_escaped|$to_escaped|g" "$path"
+    sed_in_place "s|$from_escaped|$to_escaped|g" "$path"
   done < <(grep -rIlZ -F "$BUNDLED_DATA_ROOT" "$search_root" || true)
 }
 
@@ -180,16 +190,23 @@ if [ "$skip_confirm" = false ]; then
   esac
 fi
 
-echo "Removing old Neovim config and data..."
-rm -rf "$config_target"
-rm -rf "$data_target"
+# Resolve absolute path to $0 to survive parent directory deletion
+if [[ "$0" = /* ]]; then
+  installer_self="$0"
+else
+  installer_self="$(pwd)/$0"
+fi
 
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
 # Use byte offset to extract payload (robust against binary content)
 HEADER_BYTES=PLACEHOLDER_BYTES
-tail -c +"$((HEADER_BYTES + 1))" "$0" | tar -xzf - -C "$tmp_dir"
+tail -c +"$((HEADER_BYTES + 1))" "$installer_self" | tar -xzf - -C "$tmp_dir"
+
+echo "Removing old Neovim config and data..."
+rm -rf "$config_target"
+rm -rf "$data_target"
 
 rewrite_embedded_data_paths "$tmp_dir/nvim-bundle/data/nvim" "$data_target"
 
@@ -221,12 +238,12 @@ HEADER
 # Iterate because replacing the placeholder changes the file size.
 bundled_data_root=$(printf '%q' "$source_data_root")
 bundled_data_root_escaped=$(escape_sed_replacement "$bundled_data_root")
-sed -i "s|^BUNDLED_DATA_ROOT=.*$|BUNDLED_DATA_ROOT=${bundled_data_root_escaped}|" "$installer_header"
+sed_in_place "s|^BUNDLED_DATA_ROOT=.*$|BUNDLED_DATA_ROOT=${bundled_data_root_escaped}|" "$installer_header"
 prev_bytes=0
 header_bytes=$(wc -c < "$installer_header")
 while [ "$header_bytes" != "$prev_bytes" ]; do
   prev_bytes=$header_bytes
-  sed -i "s/^HEADER_BYTES=.*$/HEADER_BYTES=${header_bytes}/" "$installer_header"
+  sed_in_place "s/^HEADER_BYTES=.*$/HEADER_BYTES=${header_bytes}/" "$installer_header"
   header_bytes=$(wc -c < "$installer_header")
 done
 
