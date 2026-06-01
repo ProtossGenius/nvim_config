@@ -100,6 +100,24 @@ copy_data_dir "mason"
 copy_data_dir "nvim-java"
 copy_data_dir "site"
 
+# Clean up unnecessary packaging bloat from config and data bundles to keep installer size small
+find "$config_root" -type f -name ".DS_Store" -delete
+find "$config_root" -type d -name "__pycache__" -exec rm -rf {} +
+
+if [ -d "$data_root" ]; then
+  # 1. Remove all git metadata directories (takes up a massive amount of space)
+  find "$data_root" -type d -name ".git" -exec rm -rf {} +
+  # 2. Remove all git configurations (useless offline)
+  find "$data_root" -type f -name ".gitignore" -delete
+  find "$data_root" -type f -name ".gitattributes" -delete
+  find "$data_root" -type f -name ".gitmodules" -delete
+  # 3. Remove macOS system files
+  find "$data_root" -type f -name ".DS_Store" -delete
+  # 4. Remove log files and temp files
+  find "$data_root" -type f -name "*.log" -delete
+  find "$data_root" -type f -name "*.tmp" -delete
+fi
+
 payload_archive="$tmp_dir/payload.tar.gz"
 tar -czf "$payload_archive" -C "$tmp_dir" "nvim-bundle"
 
