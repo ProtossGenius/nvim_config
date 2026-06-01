@@ -57,6 +57,49 @@ local function is_cursor_in_range(cursor_row, cursor_col, s_row, s_col, e_row, e
   return true
 end
 
+local nested_containers = {
+  call_expression = true,
+  method_invocation = true,
+  function_call = true,
+  macro_invocation = true,
+  argument_list = true,
+  arguments = true,
+  parenthesized_expression = true,
+  array_literal = true,
+  object_literal = true,
+}
+
+local function find_top_level_commas(node, commas)
+  for i = 0, node:child_count() - 1 do
+    local child = node:child(i)
+    local c_type = child:type()
+    if c_type == ',' or c_type == 'comma' then
+      local start_row, start_col = child:range()
+      table.insert(commas, { row = start_row, col = start_col })
+    elseif not nested_containers[c_type] then
+      find_top_level_commas(child, commas)
+    end
+  end
+end
+
+local function get_cursor_argument_index(arg_container, cursor_row, cursor_col)
+  local commas = {}
+  find_top_level_commas(arg_container, commas)
+
+  if #commas == 0 then
+    return 1
+  end
+
+  local commas_before_cursor = 0
+  for _, comma in ipairs(commas) do
+    if cursor_row > comma.row or (cursor_row == comma.row and cursor_col >= comma.col) then
+      commas_before_cursor = commas_before_cursor + 1
+    end
+  end
+
+  return commas_before_cursor + 1
+end
+
 local function offset_to_pos(text, start_row, start_col, offset)
   local current_offset = 1
   local row = start_row
@@ -140,6 +183,22 @@ local function get_call_expression(node, filetype)
     if valid_types[current:type()] then
       return current
     end
+    if current:type() == 'ERROR' then
+      local has_ident = false
+      local has_paren = false
+      for i = 0, current:child_count() - 1 do
+        local child = current:child(i)
+        if child:type() == 'identifier' then
+          has_ident = true
+        elseif child:type() == '(' and has_ident then
+          has_paren = true
+          break
+        end
+      end
+      if has_ident and has_paren then
+        return current
+      end
+    end
     current = current:parent()
   end
 
@@ -147,6 +206,9 @@ local function get_call_expression(node, filetype)
 end
 
 local function get_argument_container(call_node)
+  if call_node:type() == 'ERROR' then
+    return call_node
+  end
   for index = 0, call_node:named_child_count() - 1 do
     local child = call_node:named_child(index)
     if arg_container_types[child:type()] then
@@ -157,13 +219,29 @@ end
 
 local function get_arguments(arg_container)
   local args = {}
+  local is_error_node = arg_container:type() == 'ERROR'
+  local skip_next = is_error_node
   for index = 0, arg_container:named_child_count() - 1 do
-    table.insert(args, arg_container:named_child(index))
+    local child = arg_container:named_child(index)
+    if is_error_node and child:type() == 'identifier' and skip_next then
+      skip_next = false
+    else
+      table.insert(args, child)
+    end
   end
   return args
 end
 
 local function get_callee_text(call_node, arg_container, bufnr)
+  if call_node:type() == 'ERROR' then
+    for i = 0, call_node:child_count() - 1 do
+      local child = call_node:child(i)
+      if child:type() == 'identifier' then
+        return vim.trim(vim.treesitter.get_node_text(child, bufnr))
+      end
+    end
+    return ''
+  end
   local call_start_row, call_start_col = call_node:range()
   local arg_start_row, arg_start_col = arg_container:range()
   local text = node_text(bufnr, call_start_row, call_start_col, arg_start_row, arg_start_col)
@@ -396,12 +474,26 @@ local function brace_options(filetype, callee_text)
   return { allowed = false }
 end
 
-local function resolve_format_call(bufnr, filetype, callee_text, args)
+local function resolve_format_call(bufnr, filetype, callee_text, args, arg_container)
   for index, arg in ipairs(args) do
     local string_info = get_string_info(arg, bufnr)
     if string_info then
-      local has_following_args = index < #args
-      if has_following_args and allow_percent_style(filetype, callee_text) and contains_percent_placeholders(string_info.content) then
+      local has_comma = false
+      if arg_container then
+        local commas = {}
+        find_top_level_commas(arg_container, commas)
+        if #commas > 0 then
+          has_comma = true
+        end
+      end
+      local lower_callee = callee_text:lower()
+      local is_known_format = lower_callee:find('printf', 1, true) ~= nil
+        or lower_callee:find('format', 1, true) ~= nil
+        or lower_callee:find('log', 1, true) ~= nil
+
+      local is_valid_format_call = index < #args or has_comma or is_known_format
+
+      if is_valid_format_call and allow_percent_style(filetype, callee_text) and contains_percent_placeholders(string_info.content) then
         return {
           format_idx = index,
           parser = parse_percent_placeholders,
@@ -411,7 +503,7 @@ local function resolve_format_call(bufnr, filetype, callee_text, args)
       end
 
       local brace_opts = brace_options(filetype, callee_text)
-      if has_following_args and brace_opts.allowed and contains_brace_placeholders(string_info.content, brace_opts) then
+      if is_valid_format_call and brace_opts.allowed and contains_brace_placeholders(string_info.content, brace_opts) then
         return {
           format_idx = index,
           parser = parse_brace_placeholders,
@@ -466,7 +558,7 @@ function M.update_highlights(bufnr)
     return
   end
 
-  local resolved = resolve_format_call(bufnr, filetype, callee_text, args)
+  local resolved = resolve_format_call(bufnr, filetype, callee_text, args, arg_container)
   if not resolved or resolved.format_idx > #args then
     return
   end
@@ -504,7 +596,7 @@ function M.update_highlights(bufnr)
         highlight_range(bufnr, p_start_row, p_start_col, p_end_row, p_end_col, 'PrintfPlaceholder')
 
         local arg_node = arg_values[placeholder_index]
-        if arg_node then
+        if arg_node and not arg_node:missing() then
           local a_start_row, a_start_col, a_end_row, a_end_col = arg_node:range()
           highlight_range(bufnr, a_start_row, a_start_col, a_end_row, a_end_col, 'PrintfArgument')
         end
@@ -512,20 +604,22 @@ function M.update_highlights(bufnr)
       end
     end
   else
-    for placeholder_index, arg_node in ipairs(arg_values) do
-      local a_start_row, a_start_col, a_end_row, a_end_col = arg_node:range()
-      if is_cursor_in_range(cursor_row, cursor_col, a_start_row, a_start_col, a_end_row, a_end_col) then
-        highlight_range(bufnr, a_start_row, a_start_col, a_end_row, a_end_col, 'PrintfArgument')
+    local cursor_arg_idx = get_cursor_argument_index(arg_container, cursor_row, cursor_col)
+    local placeholder_index = cursor_arg_idx - resolved.format_idx
+    if placeholder_index >= 1 and placeholder_index <= #placeholders then
+      local placeholder = placeholders[placeholder_index]
+      if placeholder then
+        local placeholder_start_offset = string_info.content_start_offset + placeholder.start_offset - 1
+        local placeholder_end_offset = string_info.content_start_offset + placeholder.end_offset
+        local p_start_row, p_start_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_start_offset)
+        local p_end_row, p_end_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_end_offset)
+        highlight_range(bufnr, p_start_row, p_start_col, p_end_row, p_end_col, 'PrintfPlaceholder')
+      end
 
-        local placeholder = placeholders[placeholder_index]
-        if placeholder then
-          local placeholder_start_offset = string_info.content_start_offset + placeholder.start_offset - 1
-          local placeholder_end_offset = string_info.content_start_offset + placeholder.end_offset
-          local p_start_row, p_start_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_start_offset)
-          local p_end_row, p_end_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_end_offset)
-          highlight_range(bufnr, p_start_row, p_start_col, p_end_row, p_end_col, 'PrintfPlaceholder')
-        end
-        break
+      local arg_node = arg_values[placeholder_index]
+      if arg_node and not arg_node:missing() then
+        local a_start_row, a_start_col, a_end_row, a_end_col = arg_node:range()
+        highlight_range(bufnr, a_start_row, a_start_col, a_end_row, a_end_col, 'PrintfArgument')
       end
     end
   end
@@ -540,14 +634,14 @@ function M.setup()
     pattern = filetypes,
     callback = function(args)
       local bufnr = args.buf
-      vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
+      vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'TextChanged', 'TextChangedI' }, {
         group = group,
         buffer = bufnr,
         callback = function()
           M.update_highlights(bufnr)
         end,
       })
-      vim.api.nvim_create_autocmd({ 'BufLeave', 'InsertLeave' }, {
+      vim.api.nvim_create_autocmd({ 'BufLeave' }, {
         group = group,
         buffer = bufnr,
         callback = function()

@@ -469,20 +469,42 @@ return {
   'tpope/vim-surround',
   {
     'mattn/emmet-vim',
+    ft = {
+      'css',
+      'html',
+      'javascriptreact',
+      'typescriptreact',
+      'xml',
+      'xhtml',
+      'svg',
+    },
     init = function()
       vim.g.user_emmet_install_global = 0
-      vim.g.user_emmet_leader_key = ','
       vim.api.nvim_create_autocmd('FileType', {
         group = vim.api.nvim_create_augroup('UserEmmetInstall', { clear = true }),
         pattern = {
           'css',
           'html',
-          'svg',
-          'xhtml',
+          'javascriptreact',
+          'typescriptreact',
           'xml',
+          'xhtml',
+          'svg',
         },
         callback = function()
           vim.cmd('EmmetInstall')
+          
+          -- Map emmet prefix keys buffer-locally only for web filetypes
+          local map_opts = { buffer = true, silent = true }
+          vim.keymap.set('i', ',,', '<plug>(emmet-expand-abbr)', map_opts)
+          vim.keymap.set('n', ',d', '<plug>(emmet-balance-tag-inward)', map_opts)
+          vim.keymap.set('n', ',D', '<plug>(emmet-balance-tag-outward)', map_opts)
+          vim.keymap.set('n', ',n', '<plug>(emmet-move-next)', map_opts)
+          vim.keymap.set('n', ',N', '<plug>(emmet-move-prev)', map_opts)
+          vim.keymap.set('n', ',i', '<plug>(emmet-image-size)', map_opts)
+          vim.keymap.set('n', ',k', '<plug>(emmet-remove-tag)', map_opts)
+          vim.keymap.set('n', ',j', '<plug>(emmet-split-join-tag)', map_opts)
+          vim.keymap.set('n', ',/', '<plug>(emmet-toggle-comment)', map_opts)
         end,
       })
     end,
