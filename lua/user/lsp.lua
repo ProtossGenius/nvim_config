@@ -1,5 +1,10 @@
 local M = {}
 
+-- Configure diagnostics globally
+vim.diagnostic.config({
+  severity_sort = true, -- Show highest severity diagnostic (Error over Warning) on the same line
+})
+
 local function buf_map(bufnr, mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, {
     buffer = bufnr,
