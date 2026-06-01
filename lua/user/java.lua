@@ -15,6 +15,9 @@ local managed_runtime_scan_patterns = {
   vim.fs.joinpath(vim.fn.stdpath('data'), 'nvim-java', 'packages', 'openjdk', '*', 'jdk-*', 'Contents', 'Home'),
   vim.fs.joinpath(vim.fn.stdpath('data'), 'nvim-java', 'packages', 'openjdk', '*', 'jdk-*'),
 }
+local mason_package_names = {
+  'java-debug-adapter',
+}
 
 local state
 
@@ -241,10 +244,55 @@ local function get_state()
     runtimes = runtimes,
     default_runtime = default_runtime,
     launcher = launcher,
+    mason_packages_requested = false,
     projects = {},
   }
 
   return state
+end
+
+local function notify(level, message)
+  vim.schedule(function()
+    vim.notify(message, level)
+  end)
+end
+
+function M.ensure_mason_packages()
+  local current = get_state()
+  if current.mason_packages_requested then
+    return
+  end
+  current.mason_packages_requested = true
+
+  local ok_registry, registry = pcall(require, 'mason-registry')
+  if not ok_registry then
+    notify(vim.log.levels.WARN, 'mason-registry is unavailable; skipping Java debug adapter installation.')
+    return
+  end
+
+  local function install_missing_packages()
+    for _, package_name in ipairs(mason_package_names) do
+      local ok_package, pkg = pcall(registry.get_package, package_name)
+      if not ok_package then
+        notify(vim.log.levels.WARN, ('Mason package is unavailable: %s'):format(package_name))
+      elseif not pkg:is_installed() then
+        local ok_install, err = pcall(pkg.install, pkg)
+        if not ok_install then
+          notify(vim.log.levels.ERROR, ('Failed to install Mason package %s: %s'):format(package_name, err))
+        end
+      end
+    end
+  end
+
+  if type(registry.refresh) == 'function' then
+    local ok_refresh, err = pcall(registry.refresh, vim.schedule_wrap(install_missing_packages))
+    if not ok_refresh then
+      notify(vim.log.levels.ERROR, ('Failed to refresh Mason registry for Java packages: %s'):format(err))
+    end
+    return
+  end
+
+  install_missing_packages()
 end
 
 local function project_root(bufnr)
@@ -835,6 +883,7 @@ function M.resolve_mapper_java(bufnr)
 end
 
 function M.setup()
+  M.ensure_mason_packages()
   M.patch_jdtls_workspace_path()
 
   local group = vim.api.nvim_create_augroup('UserJavaMapper', { clear = true })
