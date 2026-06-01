@@ -46,7 +46,21 @@ local function parse_path_ref(text)
     }
   end
 
-  local path_part, line_part, col_part = text:match('([%a]:[%w%._%-%/%\\]+%.[%w]+):(%d+):(%d+)')
+  -- Support Maven compilation error style with bracketed line/col: filename.java:[3,12]
+  local path_part, line_part, col_part = text:match('([%a]:[%w%._%-%/%\\]+%.[%w]+):%[(%d+),(%d+)%]')
+  if not path_part then
+    path_part, line_part = text:match('([%a]:[%w%._%-%/%\\]+%.[%w]+):%[(%d+)%]')
+  end
+  if not path_part then
+    path_part, line_part, col_part = text:match('([%w%._%-%/%\\]+%.[%w]+):%[(%d+),(%d+)%]')
+  end
+  if not path_part then
+    path_part, line_part = text:match('([%w%._%-%/%\\]+%.[%w]+):%[(%d+)%]')
+  end
+
+  if not path_part then
+    path_part, line_part, col_part = text:match('([%a]:[%w%._%-%/%\\]+%.[%w]+):(%d+):(%d+)')
+  end
   if not path_part then
     path_part, line_part = text:match('([%a]:[%w%._%-%/%\\]+%.[%w]+):(%d+)')
   end
@@ -54,7 +68,6 @@ local function parse_path_ref(text)
   if not path_part then
     path_part, line_part, col_part = text:match('([%w%._%-%/%\\]+%.[%w]+):(%d+):(%d+)')
   end
-
   if not path_part then
     path_part, line_part = text:match('([%w%._%-%/%\\]+%.[%w]+):(%d+)')
   end
