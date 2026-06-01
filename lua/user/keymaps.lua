@@ -171,7 +171,8 @@ local function toggle_terminal()
       -- No terminals exist, create a new one in a fullscreen float
       local buf = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_open_win(buf, true, win_opts)
-      vim.cmd('terminal')
+      local project_root = require('user.project').root(0)
+      vim.fn.termopen(vim.o.shell, { cwd = project_root })
       vim.cmd('startinsert!') -- Enter insert mode automatically
     end
   end

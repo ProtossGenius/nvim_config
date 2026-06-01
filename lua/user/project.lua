@@ -44,7 +44,15 @@ function M.root(path_or_bufnr)
     start_path = M.path_from_buf(0)
   end
 
-  return vim.fs.root(start_path or vim.fn.getcwd(), M.root_markers) or vim.fn.getcwd()
+  local base_path = start_path or vim.fn.getcwd()
+
+  -- Prioritize .git and .root markers to find the true project root in monorepos/submodules
+  local git_root = vim.fs.root(base_path, { '.git', '.root' })
+  if git_root then
+    return git_root
+  end
+
+  return vim.fs.root(base_path, M.root_markers) or vim.fn.getcwd()
 end
 
 function M.relative(path, root)
