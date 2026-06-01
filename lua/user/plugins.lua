@@ -349,6 +349,20 @@ return {
         },
         handlers = {
           lsp.default_setup,
+          clangd = function()
+            require('lspconfig').clangd.setup({
+              capabilities = capabilities,
+              cmd = {
+                'clangd',
+                '--background-index',
+                '--clang-tidy',
+                '--header-insertion=never',
+              },
+              init_options = {
+                fallbackFlags = { '-Wall', '-Wextra' },
+              },
+            })
+          end,
         },
       })
 
@@ -497,5 +511,26 @@ return {
         -- 其他配置项...
       })
     end
+  },
+
+  -- Modern Lua-based asynchronous linter for static analysis (cppcheck)
+  {
+    'mfussenegger/nvim-lint',
+    event = { 'BufReadPost', 'BufWritePost' },
+    config = function()
+      local lint = require('lint')
+      lint.linters_by_ft = {
+        c = { 'cppcheck' },
+        cpp = { 'cppcheck' },
+      }
+
+      -- Trigger linting on save and on entering buffer
+      vim.api.nvim_create_autocmd({ 'BufWritePost', 'BufEnter' }, {
+        group = vim.api.nvim_create_augroup('UserNvimLint', { clear = true }),
+        callback = function()
+          lint.try_lint()
+        end,
+      })
+    end,
   },
 }
