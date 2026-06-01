@@ -319,10 +319,11 @@ keymap('n', '<CR>', function()
   local dap_ok, dap = pcall(require, 'dap')
   if dap_ok and dap.session() and _G.last_dap_action then
     _G.last_dap_action()
+    return ''
   else
-    vim.cmd('normal! +')
+    return '<CR>'
   end
-end, { noremap = true, silent = true, desc = 'DAP: Repeat last debug step or standard Enter' })
+end, { expr = true, noremap = true, silent = true, desc = 'DAP: Repeat last debug step or standard Enter' })
 
 dap_map('n', '<leader>db', function() require('dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
 dap_map('n', '<leader>dc', function() require('dap').continue() end, 'Debug: Continue / Start')
