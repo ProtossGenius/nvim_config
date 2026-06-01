@@ -156,6 +156,16 @@ escape_sed_replacement() {
   printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
 }
 
+sed_in_place() {
+  local expr="$1"
+  local file="$2"
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "$expr" "$file"
+  else
+    sed -i "$expr" "$file"
+  fi
+}
+
 rewrite_embedded_data_paths() {
   local search_root="$1"
   local target_root="$2"
