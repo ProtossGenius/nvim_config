@@ -163,16 +163,45 @@ local function toggle_terminal()
       border = 'none',
       zindex = 50,
     }
-    if #terminal_buffers > 0 then
-      -- If terminals exist but none are visible, show the first one in a fullscreen float
-      vim.api.nvim_open_win(terminal_buffers[1], true, win_opts)
+
+    -- Get target directory from current active buffer (before opening terminal window)
+    local target_dir = nil
+    local cur_buf = vim.api.nvim_get_current_buf()
+    local cur_name = vim.api.nvim_buf_get_name(cur_buf)
+    if cur_name and cur_name ~= '' then
+      if vim.bo[cur_buf].filetype == 'dirvish' then
+        target_dir = vim.fn.fnamemodify(cur_name, ':p')
+      elseif vim.bo[cur_buf].buftype ~= 'terminal' then
+        local dir = vim.fn.fnamemodify(cur_name, ':p:h')
+        if vim.fn.isdirectory(dir) == 1 then
+          target_dir = dir
+        end
+      end
+    end
+    if not target_dir then
+      target_dir = vim.fn.getcwd()
+    end
+    target_dir = vim.fs.normalize(target_dir)
+
+    -- Find an existing terminal buffer for target_dir
+    local matched_buf = nil
+    for _, bufnr in ipairs(terminal_buffers) do
+      local ok, term_dir = pcall(vim.api.nvim_buf_get_var, bufnr, 'terminal_dir')
+      if ok and term_dir == target_dir then
+        matched_buf = bufnr
+        break
+      end
+    end
+
+    if matched_buf then
+      vim.api.nvim_open_win(matched_buf, true, win_opts)
       vim.cmd('startinsert!') -- Enter insert mode automatically
     else
-      -- No terminals exist, create a new one in a fullscreen float
+      -- Create a new terminal in target_dir
       local buf = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_open_win(buf, true, win_opts)
-      local project_root = require('user.project').root(0)
-      vim.fn.termopen(vim.o.shell, { cwd = project_root })
+      vim.fn.termopen(vim.o.shell, { cwd = target_dir })
+      vim.api.nvim_buf_set_var(buf, 'terminal_dir', target_dir)
       vim.cmd('startinsert!') -- Enter insert mode automatically
     end
   end
