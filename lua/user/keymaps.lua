@@ -164,23 +164,8 @@ local function toggle_terminal()
       zindex = 50,
     }
 
-    -- Get target directory from current active buffer (before opening terminal window)
-    local target_dir = nil
-    local cur_buf = vim.api.nvim_get_current_buf()
-    local cur_name = vim.api.nvim_buf_get_name(cur_buf)
-    if cur_name and cur_name ~= '' then
-      if vim.bo[cur_buf].filetype == 'dirvish' then
-        target_dir = vim.fn.fnamemodify(cur_name, ':p')
-      elseif vim.bo[cur_buf].buftype ~= 'terminal' then
-        local dir = vim.fn.fnamemodify(cur_name, ':p:h')
-        if vim.fn.isdirectory(dir) == 1 then
-          target_dir = dir
-        end
-      end
-    end
-    if not target_dir then
-      target_dir = vim.fn.getcwd()
-    end
+    -- ALWAYS use the immutable initial starting directory as the terminal directory
+    local target_dir = _G.initial_cwd or vim.fn.getcwd()
     target_dir = vim.fs.normalize(target_dir)
 
     -- Find an existing terminal buffer for target_dir
