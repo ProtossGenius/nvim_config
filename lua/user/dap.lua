@@ -47,10 +47,16 @@ function M.setup()
 
   -- 3. Configure Visual Signs
   vim.fn.sign_define("DapBreakpoint", { text = "🔴", texthl = "DapBreakpoint", linehl = "", numhl = "" })
-  vim.fn.sign_define("DapBreakpointCondition", { text = "🟡", texthl = "DapBreakpointCondition", linehl = "", numhl = "" })
+  vim.fn.sign_define("DapBreakpointCondition", { text = "🔶", texthl = "DapBreakpointCondition", linehl = "", numhl = "" })
   vim.fn.sign_define("DapBreakpointRejected", { text = "🚫", texthl = "DapBreakpointRejected", linehl = "", numhl = "" })
   vim.fn.sign_define("DapLogPoint", { text = "💬", texthl = "DapLogPoint", linehl = "", numhl = "" })
   vim.fn.sign_define("DapStopped", { text = "➡️", texthl = "DapStopped", linehl = "DebugStoppedLine", numhl = "DebugStoppedLine" })
+
+  -- Setup highlight colors for DAP signs
+  vim.api.nvim_set_hl(0, "DapBreakpoint", { fg = "#e06c75", bg = "" })
+  vim.api.nvim_set_hl(0, "DapBreakpointCondition", { fg = "#e5c07b", bg = "" })
+  vim.api.nvim_set_hl(0, "DapBreakpointRejected", { fg = "#5c6370", bg = "" })
+  vim.api.nvim_set_hl(0, "DapLogPoint", { fg = "#61afef", bg = "" })
 
   -- Highlight the current debug line
   vim.api.nvim_set_hl(0, "DebugStoppedLine", { ctermbg = 0, bg = "#3b4252", bold = true })

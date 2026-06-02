@@ -356,7 +356,12 @@ keymap('n', '<CR>', function()
 end, { expr = true, noremap = true, silent = true, desc = 'DAP: Repeat last debug step or standard Enter' })
 
 dap_map('n', '<leader>db', function() require('dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
-dap_map('n', '<leader>dB', function() require('dap').set_breakpoint(vim.fn.input('Breakpoint condition: ')) end, 'Debug: Set conditional breakpoint')
+dap_map('n', '<leader>dB', function()
+  local cond = vim.fn.input('Breakpoint condition: ')
+  if cond and cond ~= '' then
+    require('dap').set_breakpoint(cond)
+  end
+end, 'Debug: Set conditional breakpoint')
 dap_map('n', '<leader>dc', function() require('dap').continue() end, 'Debug: Continue / Start')
 dap_map('n', '<leader>dn', function() require('dap').step_over() end, 'Debug: Step over / Next')
 dap_map('n', '<leader>di', function() require('dap').step_into() end, 'Debug: Step into')
