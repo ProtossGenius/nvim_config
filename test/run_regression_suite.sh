@@ -7,7 +7,7 @@ JAVA_PROJECT="${NVIM_TEST_JAVA_PROJECT:-$HOME/workspace/test-java}"
 run_spec() {
   local spec="$1"
   echo "==> $spec"
-  nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/$spec'); if not ok then print(err); os.exit(1) else os.exit(0) end"
+  nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/$spec'); for _, c in ipairs(vim.lsp.get_clients()) do pcall(function() c:terminate() end) end; if not ok then print(err); vim.cmd('cquit') else vim.cmd('qa!') end"
 }
 
 echo "==> startup smoke"
@@ -32,4 +32,5 @@ run_spec "test/scratchpad_spec.lua"
 run_spec "test/datasource_spec.lua"
 
 echo "==> test/java_file_actions_integration.lua"
-NVIM_TEST_JAVA_PROJECT="$JAVA_PROJECT" nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/test/java_file_actions_integration.lua'); if not ok then print(err); os.exit(1) else os.exit(0) end"
+NVIM_TEST_JAVA_PROJECT="$JAVA_PROJECT" nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/test/java_file_actions_integration.lua'); for _, c in ipairs(vim.lsp.get_clients()) do pcall(function() c:terminate() end) end; if not ok then print(err); vim.cmd('cquit') else vim.cmd('qa!') end"
+
