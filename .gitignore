@@ -1,7 +1,7 @@
 target/
-test-projects/java17-spring-demo/.project
-test-projects/java17-spring-demo/.classpath
-test-projects/java17-spring-demo/.factorypath
-test-projects/java17-spring-demo/.settings/
+test-projects/java17-spring-demo/**/.project
+test-projects/java17-spring-demo/**/.classpath
+test-projects/java17-spring-demo/**/.factorypath
+test-projects/java17-spring-demo/**/.settings/
 test-projects/java17-spring-demo/startup.sh
 test-projects/cpp-cmake-demo/build/

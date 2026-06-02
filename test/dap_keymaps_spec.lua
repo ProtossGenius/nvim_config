@@ -7,6 +7,7 @@ local function has_map(lhs)
 end
 
 support.expect_true('dap keymap has toggle breakpoint', has_map('<leader>db'))
+support.expect_true('dap keymap has conditional breakpoint', has_map('<leader>dB'))
 support.expect_true('dap keymap has continue', has_map('<leader>dc'))
 support.expect_true('dap keymap has step over', has_map('<leader>dn'))
 support.expect_true('dap keymap has step into', has_map('<leader>di'))

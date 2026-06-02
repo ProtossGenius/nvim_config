@@ -247,8 +247,36 @@ local function get_state()
   return state
 end
 
-local function project_root(bufnr)
-  return project.root(bufnr)
+local function project_root(path_or_bufnr)
+  local path
+  if type(path_or_bufnr) == 'string' then
+    path = path_or_bufnr
+  elseif type(path_or_bufnr) == 'number' then
+    path = vim.api.nvim_buf_get_name(path_or_bufnr)
+  else
+    path = vim.api.nvim_buf_get_name(0)
+  end
+
+  if not path or path == '' then
+    path = vim.fn.getcwd()
+  end
+
+  local java_markers = {
+    'pom.xml',
+    'mvnw',
+    'build.gradle',
+    'build.gradle.kts',
+    'settings.gradle',
+    'settings.gradle.kts',
+    'gradlew',
+  }
+
+  local java_root = vim.fs.root(path, java_markers)
+  if java_root then
+    return java_root
+  end
+
+  return project.root(path_or_bufnr)
 end
 
 function M.patch_jdtls_workspace_path()
@@ -548,7 +576,15 @@ local function resolve_mapper_xml(bufnr)
   local java_name = basename(vim.api.nvim_buf_get_name(bufnr))
   local xml_name = java_name:gsub('%.java$', '.xml')
   local namespace = java_fqn(bufnr)
-  local candidates = find_files_by_name(root, xml_name, 50)
+  local all_candidates = find_files_by_name(root, xml_name, 50)
+
+  local candidates = {}
+  for _, candidate in ipairs(all_candidates) do
+    local normalized = vim.fs.normalize(candidate)
+    if not normalized:match('/target/') and not normalized:match('/build/') then
+      table.insert(candidates, candidate)
+    end
+  end
 
   if namespace then
     for _, candidate in ipairs(candidates) do
@@ -558,7 +594,7 @@ local function resolve_mapper_xml(bufnr)
     end
   end
 
-  return candidates[1]
+  return candidates[1] or all_candidates[1]
 end
 
 local function resolve_mapper_java(bufnr)
@@ -574,7 +610,16 @@ local function resolve_mapper_java(bufnr)
   end
 
   local java_name = basename(vim.api.nvim_buf_get_name(bufnr)):gsub('%.xml$', '.java')
-  local candidates = find_files_by_name(root, java_name, 50)
+  local all_candidates = find_files_by_name(root, java_name, 50)
+
+  local candidates = {}
+  for _, candidate in ipairs(all_candidates) do
+    local normalized = vim.fs.normalize(candidate)
+    if not normalized:match('/target/') and not normalized:match('/build/') then
+      table.insert(candidates, candidate)
+    end
+  end
+
   if namespace then
     for _, candidate in ipairs(candidates) do
       if java_fqn_from_file(candidate) == namespace then
@@ -583,7 +628,7 @@ local function resolve_mapper_java(bufnr)
     end
   end
 
-  return candidates[1]
+  return candidates[1] or all_candidates[1]
 end
 
 local function open_at(path, line_nr, cmd)
