@@ -3,11 +3,11 @@
 local home = os.getenv("HOME")
 local jdtls = require("jdtls")
 
--- 1. Detect root directory
-local root_markers = { "gradlew", "pom.xml", "mvnw", ".git" }
-local root_dir = require("jdtls.setup").find_root(root_markers)
+-- 1. Detect root directory using the custom project_root calculation
+local user_java = require("user.java")
+local root_dir = user_java._test.project_root(0)
 
-if root_dir == "" then
+if not root_dir or root_dir == "" then
   return
 end
 

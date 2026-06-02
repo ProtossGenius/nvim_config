@@ -366,6 +366,9 @@ return {
         },
         handlers = {
           lsp.default_setup,
+          jdtls = function()
+            -- Do nothing. JDTLS is managed by nvim-jdtls in ftplugin/java.lua
+          end,
           clangd = function()
             require('lspconfig').clangd.setup({
               capabilities = capabilities,
