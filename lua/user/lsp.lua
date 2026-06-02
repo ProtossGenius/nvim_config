@@ -5,6 +5,22 @@ vim.diagnostic.config({
   severity_sort = true, -- Show highest severity diagnostic (Error over Warning) on the same line
 })
 
+-- Silently handle and ignore LSP signature help RPC errors (such as Java's ClassCastException)
+local original_sig_help_handler = vim.lsp.handlers["textDocument/signatureHelp"]
+vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, config)
+  if err then
+    -- Suppress all signatureHelp errors to avoid annoying popups/messages
+    return
+  end
+  if original_sig_help_handler then
+    original_sig_help_handler(err, result, ctx, config)
+  else
+    vim.lsp.with(vim.lsp.handlers.signature_help, {
+      border = 'rounded',
+    })(err, result, ctx, config)
+  end
+end
+
 local function buf_map(bufnr, mode, lhs, rhs, desc)
   vim.keymap.set(mode, lhs, rhs, {
     buffer = bufnr,

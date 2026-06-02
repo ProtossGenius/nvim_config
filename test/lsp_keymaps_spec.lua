@@ -48,4 +48,31 @@ support.expect_equal('lsp visual format passes range', format_calls[1], {
 
 vim.lsp.buf.format = original_format
 
+-- Test textDocument/signatureHelp error suppression
+local original_handler = vim.lsp.handlers["textDocument/signatureHelp"]
+local called_with = nil
+vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, config)
+  called_with = { err = err, result = result }
+end
+
+package.loaded['user.lsp'] = nil
+user_lsp = require('user.lsp')
+
+local wrapper_handler = vim.lsp.handlers["textDocument/signatureHelp"]
+
+-- Call with error, should return silently and NOT forward the call
+called_with = nil
+local ok, ret = pcall(wrapper_handler, { code = -32603, message = "Internal error" }, nil, nil, nil)
+support.expect_true('signatureHelp error handler call succeeds', ok)
+support.expect_equal('signatureHelp error is suppressed and not forwarded', called_with, nil)
+
+-- Call without error, should forward the call
+called_with = nil
+wrapper_handler(nil, { signatures = {} }, nil, nil)
+support.expect_true('signatureHelp normal call is forwarded', called_with ~= nil)
+support.expect_equal('signatureHelp normal call payload', called_with.result, { signatures = {} })
+
+-- Restore
+vim.lsp.handlers["textDocument/signatureHelp"] = original_handler
+
 support.flush()
