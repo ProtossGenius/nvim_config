@@ -155,7 +155,7 @@ return {
       require('project_nvim').setup({
         detection_methods = { 'pattern' },
         patterns = project.root_markers,
-        silent_chdir = true,
+        silent_chdir = false,
       })
       telescope.load_extension('projects')
 

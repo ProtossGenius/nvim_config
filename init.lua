@@ -1,4 +1,5 @@
 -- [[ init.lua ]]
+_G.initial_cwd = vim.fn.getcwd()
 
 -- Set <space> as the leader key
 -- See `:help mapleader`

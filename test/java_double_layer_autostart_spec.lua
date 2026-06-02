@@ -70,6 +70,16 @@ end
 
 support.expect_true('LspStart jdtls is triggered for both submodules', lsp_start_count >= 2)
 
+-- Test project_root prioritization of _G.initial_cwd
+local original_initial_cwd = _G.initial_cwd
+_G.initial_cwd = parent_dir
+vim.fn.writefile({ '<project/>' }, parent_dir .. '/pom.xml')
+
+local resolved_root = user_java._test.project_root(core_file)
+support.expect_equal('project_root prioritizes initial_cwd when it has pom.xml', vim.fs.normalize(resolved_root), vim.fs.normalize(parent_dir))
+
+_G.initial_cwd = original_initial_cwd
+
 -- Cleanup
 vim.cmd = original_cmd
 vim.fn.delete(parent_dir, 'rf')

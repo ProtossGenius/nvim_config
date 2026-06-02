@@ -261,6 +261,8 @@ local function project_root(path_or_bufnr)
     path = vim.fn.getcwd()
   end
 
+  path = vim.fs.normalize(path)
+
   local java_markers = {
     'pom.xml',
     'mvnw',
@@ -270,6 +272,21 @@ local function project_root(path_or_bufnr)
     'settings.gradle.kts',
     'gradlew',
   }
+
+  local initial_cwd = _G.initial_cwd or vim.fn.getcwd()
+  initial_cwd = vim.fs.normalize(initial_cwd)
+  local is_inside_initial_cwd = false
+  if path:sub(1, #initial_cwd) == initial_cwd then
+    is_inside_initial_cwd = true
+  end
+
+  if is_inside_initial_cwd then
+    for _, marker in ipairs(java_markers) do
+      if vim.fn.filereadable(vim.fs.joinpath(initial_cwd, marker)) == 1 then
+        return initial_cwd
+      end
+    end
+  end
 
   local java_root = vim.fs.root(path, java_markers)
   if java_root then
@@ -947,5 +964,9 @@ function M.setup()
     end,
   })
 end
+
+M._test = {
+  project_root = project_root,
+}
 
 return M
