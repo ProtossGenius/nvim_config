@@ -550,7 +550,15 @@ return {
         handler_opts = {
           border = 'rounded', -- 浮动窗口边框
         },
-        -- 其他配置项...
+        ignore_error = function(err, ctx, config)
+          if ctx and ctx.client_id then
+            local client = vim.lsp.get_client_by_id(ctx.client_id)
+            if client and vim.tbl_contains({ 'jdtls', 'rust-analyzer', 'clangd' }, client.name) then
+              return true
+            end
+          end
+          return false
+        end,
       })
     end
   },

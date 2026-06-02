@@ -40,7 +40,10 @@ public class UserController {
     log.info("Handling GET /api/users/{}", id);
     log.info("Handling GET /api/users/{}", id);
     log.info("Handling GET /api/users/{}", id);
-    log.info("Handling GET /api/users/{}", id);
+    for (int i = 0; i < 100; ++i) {
+      log.info("Handling GET /api/users/{}", id);
+       String.format("hello world %d", id);
+    }
     return userService.getUser(id);
   }
 
