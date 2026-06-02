@@ -275,16 +275,23 @@ local function project_root(path_or_bufnr)
 
   local initial_cwd = _G.initial_cwd or vim.fn.getcwd()
   initial_cwd = vim.fs.normalize(initial_cwd)
-  local is_inside_initial_cwd = false
-  if path:sub(1, #initial_cwd) == initial_cwd then
-    is_inside_initial_cwd = true
+
+  -- Check if initial_cwd is a java project
+  local initial_cwd_is_java = false
+  for _, marker in ipairs(java_markers) do
+    if vim.fn.filereadable(vim.fs.joinpath(initial_cwd, marker)) == 1 then
+      initial_cwd_is_java = true
+      break
+    end
   end
 
-  if is_inside_initial_cwd then
-    for _, marker in ipairs(java_markers) do
-      if vim.fn.filereadable(vim.fs.joinpath(initial_cwd, marker)) == 1 then
-        return initial_cwd
-      end
+  if initial_cwd_is_java then
+    -- If the path is under initial_cwd, or is a system temporary file (like autostart),
+    -- we treat initial_cwd as the project root.
+    local is_inside = path:sub(1, #initial_cwd) == initial_cwd
+    local is_temp = path:match('^/tmp/') or path:match('^/private/var/') or path:match('^/var/')
+    if is_inside or is_temp then
+      return initial_cwd
     end
   end
 

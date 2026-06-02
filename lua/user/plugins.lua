@@ -146,9 +146,26 @@ return {
         return command
       end
 
+      local function get_search_cwd()
+        return _G.initial_cwd or vim.fn.getcwd()
+      end
+
       local find_all_files = function()
         builtin.find_files({
           find_command = find_all_files_command(),
+          cwd = get_search_cwd(),
+        })
+      end
+
+      local live_grep = function()
+        builtin.live_grep({
+          cwd = get_search_cwd(),
+        })
+      end
+
+      local git_files = function()
+        builtin.git_files({
+          cwd = get_search_cwd(),
         })
       end
 
@@ -160,10 +177,10 @@ return {
       telescope.load_extension('projects')
 
       vim.keymap.set('n', '<c-p>', find_all_files, { desc = 'Find files (including ignored)' })
-      vim.keymap.set('n', '<A-f>', builtin.live_grep, { desc = 'Live Grep' })
+      vim.keymap.set('n', '<A-f>', live_grep, { desc = 'Live Grep' })
       vim.keymap.set('n', '<A-r>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
-      vim.keymap.set('n', '<leader>ff', builtin.git_files, { desc = 'Find git files' })
+      vim.keymap.set('n', '<leader>ff', git_files, { desc = 'Find git files' })
       vim.keymap.set('n', '<leader>fa', find_all_files, { desc = 'Find files (including ignored)' })
     end,
   },

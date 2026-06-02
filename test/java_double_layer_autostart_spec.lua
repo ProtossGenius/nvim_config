@@ -78,6 +78,10 @@ vim.fn.writefile({ '<project/>' }, parent_dir .. '/pom.xml')
 local resolved_root = user_java._test.project_root(core_file)
 support.expect_equal('project_root prioritizes initial_cwd when it has pom.xml', vim.fs.normalize(resolved_root), vim.fs.normalize(parent_dir))
 
+-- Verify temporary/system files also resolve to parent_dir if initial_cwd is java project
+local resolved_temp_root = user_java._test.project_root('/tmp/something_autostart.java')
+support.expect_equal('project_root resolves temp file to initial_cwd when it has pom.xml', vim.fs.normalize(resolved_temp_root), vim.fs.normalize(parent_dir))
+
 _G.initial_cwd = original_initial_cwd
 
 -- Cleanup
