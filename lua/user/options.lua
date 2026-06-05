@@ -48,3 +48,7 @@ opt.undofile = true -- Persistent undo
 
 -- Spring Boot LSP tools toggle (disabled by default to avoid slow startup & unnecessary network requests)
 vim.g.enable_spring_boot_tools = false
+
+-- Toggle keys for JDTLS multi-select floating UI (Override/Implements selection)
+vim.g.select_many_toggle_keys = { "-", "<Space>" }
+

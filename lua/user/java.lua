@@ -677,6 +677,24 @@ end
 function M.setup()
   M.patch_jdtls_workspace_path()
 
+  local ok_jdtls, jdtls_ui = pcall(require, 'jdtls.ui')
+  if ok_jdtls and not jdtls_ui._user_pick_many_patched then
+    local original_pick_many = jdtls_ui.pick_many
+    local select_mod = require('user.select')
+    jdtls_ui.pick_many = function(items, prompt, label_f, opts)
+      local co = coroutine.running()
+      if co then
+        select_mod.select_many(items, prompt, label_f, opts, function(selected)
+          coroutine.resume(co, selected)
+        end)
+        return coroutine.yield()
+      else
+        return original_pick_many(items, prompt, label_f, opts)
+      end
+    end
+    jdtls_ui._user_pick_many_patched = true
+  end
+
   local group = vim.api.nvim_create_augroup('UserJavaMapper', { clear = true })
   local startup_group = vim.api.nvim_create_augroup('UserJavaAutostart', { clear = true })
 
