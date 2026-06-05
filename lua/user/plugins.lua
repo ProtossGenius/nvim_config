@@ -98,6 +98,15 @@ return {
       local project = require('user.project')
       local uv = vim.uv or vim.loop
 
+      telescope.setup({
+        defaults = {
+          -- Shorten long paths to prevent filename truncation in search results
+          path_display = function(opts, path)
+            return require('user.telescope_path').get_shortened_path(path, opts)
+          end
+        }
+      })
+
       local function existing_ignore_files()
         local files = {}
         local candidates = {
