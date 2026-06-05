@@ -596,7 +596,13 @@ return {
   -- MyBatis XML IDE enhancements
   {
     'ProtossGenius/mybatis-xml.nvim',
-    dir = '/Users/suremoon/.local/share/nvim/lazy/mybatis-xml.nvim',
+    dir = (function()
+      local local_path = vim.fn.expand('~/.local/share/nvim/lazy/mybatis-xml.nvim')
+      if vim.fn.isdirectory(local_path) == 1 then
+        return local_path
+      end
+      return nil
+    end)(),
     ft = { 'xml', 'java' },
     dependencies = { 'mfussenegger/nvim-jdtls' },
     config = function()
