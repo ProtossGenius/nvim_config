@@ -595,89 +595,7 @@ local function find_xml_line(path, statement_id)
   return 1
 end
 
-local function resolve_mapper_xml(bufnr)
-  local root = project_root(bufnr)
-  local java_name = basename(vim.api.nvim_buf_get_name(bufnr))
-  local xml_name = java_name:gsub('%.java$', '.xml')
-  local namespace = java_fqn(bufnr)
-  local all_candidates = find_files_by_name(root, xml_name, 50)
 
-  local candidates = {}
-  for _, candidate in ipairs(all_candidates) do
-    local normalized = vim.fs.normalize(candidate)
-    if not normalized:match('/target/') and not normalized:match('/build/') then
-      table.insert(candidates, candidate)
-    end
-  end
-
-  if namespace then
-    for _, candidate in ipairs(candidates) do
-      if mapper_namespace_from_file(candidate) == namespace then
-        return candidate
-      end
-    end
-  end
-
-  return candidates[1] or all_candidates[1]
-end
-
-local function resolve_mapper_java(bufnr)
-  local root = project_root(bufnr)
-  local namespace = mapper_namespace_from_file(vim.api.nvim_buf_get_name(bufnr))
-  if namespace then
-    for _, java_root in ipairs({ 'src/main/java', 'src/test/java' }) do
-      local exact = vim.fs.joinpath(root, java_root, namespace:gsub('%.', '/') .. '.java')
-      if is_file(exact) then
-        return exact
-      end
-    end
-  end
-
-  local java_name = basename(vim.api.nvim_buf_get_name(bufnr)):gsub('%.xml$', '.java')
-  local all_candidates = find_files_by_name(root, java_name, 50)
-
-  local candidates = {}
-  for _, candidate in ipairs(all_candidates) do
-    local normalized = vim.fs.normalize(candidate)
-    if not normalized:match('/target/') and not normalized:match('/build/') then
-      table.insert(candidates, candidate)
-    end
-  end
-
-  if namespace then
-    for _, candidate in ipairs(candidates) do
-      if java_fqn_from_file(candidate) == namespace then
-        return candidate
-      end
-    end
-  end
-
-  return candidates[1] or all_candidates[1]
-end
-
-local function open_at(path, line_nr, cmd)
-  vim.cmd((cmd or 'edit') .. ' ' .. vim.fn.fnameescape(path))
-  vim.api.nvim_win_set_cursor(0, { math.max(line_nr or 1, 1), 0 })
-  vim.cmd('normal! zz')
-end
-
-local function is_mapper_java_buffer(bufnr)
-  return vim.bo[bufnr].filetype == 'java' and basename(vim.api.nvim_buf_get_name(bufnr)):match('Mapper%.java$') ~= nil
-end
-
-local function is_mapper_xml_buffer(bufnr)
-  local name = basename(vim.api.nvim_buf_get_name(bufnr))
-  return vim.bo[bufnr].filetype == 'xml'
-    and (name:match('Mapper%.xml$') ~= nil or mapper_namespace_from_file(vim.api.nvim_buf_get_name(bufnr)) ~= nil)
-end
-
-local function jump_edit()
-  require('user.java').jump_mapper_pair('edit')
-end
-
-local function jump_vsplit()
-  require('user.java').jump_mapper_pair('vsplit')
-end
 
 function M.java_setup_config()
   local current = get_state()
@@ -736,171 +654,24 @@ function M.jdtls_config(base_settings)
   return config
 end
 
-local function get_method_return_type(java_path, method_name)
-  local lines = read_file_lines(java_path)
-  local escaped_name = vim.pesc(method_name)
-  local pattern = '([%w_<>%.]+)%s+' .. escaped_name .. '%s*%('
-  for _, line in ipairs(lines) do
-    -- Remove annotations and modifiers
-    local clean = line:gsub('@%w+%s*%([^)]*%)', ''):gsub('@%w+', '')
-    clean = clean:gsub('%f[%w]public%f[%W]', ''):gsub('%f[%w]default%f[%W]', '')
-    clean = vim.trim(clean)
-    local ret = clean:match(pattern)
-    if ret then
-      return ret
-    end
-  end
-  return nil
-end
-
-local function get_tag_type(method_name)
-  local lower = method_name:lower()
-  if lower:match('^select') or lower:match('^get') or lower:match('^find') or lower:match('^query') or lower:match('^count') then
-    return 'select'
-  elseif lower:match('^insert') or lower:match('^add') or lower:match('^create') or lower:match('^save') then
-    return 'insert'
-  elseif lower:match('^update') or lower:match('^modify') or lower:match('^set') then
-    return 'update'
-  elseif lower:match('^delete') or lower:match('^remove') then
-    return 'delete'
-  else
-    return 'select'
-  end
-end
-
 function M.jump_mapper_pair(open_cmd)
-  local bufnr = vim.api.nvim_get_current_buf()
-
-  if is_mapper_java_buffer(bufnr) then
-    local xml_path = resolve_mapper_xml(bufnr)
-    if not xml_path then
-      vim.notify('No matching Mapper.xml found.', vim.log.levels.WARN)
-      return
-    end
-
-    local java_path = vim.api.nvim_buf_get_name(bufnr)
-    local method_name = java_method_name(bufnr)
-    if method_name then
-      -- Check if statement ID already exists in Mapper.xml
-      local exists = false
-      if is_file(xml_path) then
-        local xml_lines = read_file_lines(xml_path)
-        for _, line in ipairs(xml_lines) do
-          if line:match('id%s*=%s*"' .. vim.pesc(method_name) .. '"') or line:match("id%s*=%s*'" .. vim.pesc(method_name) .. "'") then
-            exists = true
-            break
-          end
-        end
-      end
-
-      if not exists then
-        -- Method not found in XML, let's create a new MyBatis XML block!
-        local mybatis = require('user.mybatis')
-        local my_test = mybatis._test
-        local params = my_test.parse_method_params(java_path, method_name) or {}
-        
-        -- 1. Determine parameterType
-        local param_fqn = nil
-        if #params == 1 then
-          param_fqn = my_test.resolve_param_type_fqn(params[1], java_path)
-        end
-
-        -- 2. Determine resultType
-        local result_fqn = nil
-        local return_type = get_method_return_type(java_path, method_name)
-        if return_type and return_type ~= 'void' and return_type ~= 'int' and return_type ~= 'long' then
-          local generic = return_type:match('<%s*([%w_%.]+)%s*>')
-          local class_name = generic or return_type
-          result_fqn = my_test.resolve_type_fqn_in_file(class_name, java_path)
-        end
-
-        -- 3. Build XML block
-        local tag = get_tag_type(method_name)
-        local attrs = { string.format('id="%s"', method_name) }
-        if param_fqn then
-          table.insert(attrs, string.format('parameterType="%s"', param_fqn))
-        end
-        if tag == 'select' and result_fqn then
-          table.insert(attrs, string.format('resultType="%s"', result_fqn))
-        end
-
-        local attr_str = table.concat(attrs, ' ')
-        local indent = "  "
-        local xml_block = {
-          string.format('%s<%s %s>', indent, tag, attr_str),
-          string.format('%s  ', indent),
-          string.format('%s</%s>', indent, tag),
-        }
-
-        -- 4. Append XML block before </mapper>
-        local xml_lines = read_file_lines(xml_path)
-        local insert_index = nil
-        for i = #xml_lines, 1, -1 do
-          if xml_lines[i]:match('</mapper>') then
-            insert_index = i
-            break
-          end
-        end
-
-        if insert_index then
-          table.insert(xml_lines, insert_index, "")
-          for j, line in ipairs(xml_block) do
-            table.insert(xml_lines, insert_index + j, line)
-          end
-          vim.fn.writefile(xml_lines, xml_path)
-          
-          -- 5. Open XML file and place cursor inside the newly generated block!
-          local target_line = insert_index + 1
-          open_at(xml_path, target_line, open_cmd)
-          vim.api.nvim_win_set_cursor(0, { target_line, #indent + 2 })
-          vim.notify(string.format("Generated and jumped to XML block for '%s' in Mapper.xml", method_name), vim.log.levels.INFO)
-          return
-        end
-      end
-    end
-
-    open_at(xml_path, find_xml_line(xml_path, method_name), open_cmd)
-    return
-  end
-
-  if is_mapper_xml_buffer(bufnr) then
-    local java_path = resolve_mapper_java(bufnr)
-    if not java_path then
-      vim.notify('No matching Mapper.java found.', vim.log.levels.WARN)
-      return
-    end
-
-    open_at(java_path, find_java_line(java_path, xml_statement_id(bufnr)), open_cmd)
-    return
-  end
-
-  vim.notify('Current buffer is not a Mapper.java or Mapper.xml file.', vim.log.levels.INFO)
+  require('mybatis-xml.jump.mapper_pair').jump_mapper_pair(open_cmd)
 end
 
 function M.is_mapper_buffer(bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-  return is_mapper_java_buffer(bufnr) or is_mapper_xml_buffer(bufnr)
+  return require('mybatis-xml.jump.mapper_pair').is_mapper_buffer(bufnr)
 end
 
 function M.attach_mapper_keymaps(bufnr)
-  if not M.is_mapper_buffer(bufnr) then
-    return
-  end
-
-  local map_opts = { buffer = bufnr, silent = true }
-  vim.keymap.set('n', 'gf', jump_edit, vim.tbl_extend('force', map_opts, { desc = 'Jump mapper pair' }))
-  vim.keymap.set('n', 'gF', jump_vsplit, vim.tbl_extend('force', map_opts, { desc = 'Jump mapper pair in split' }))
-  vim.keymap.set('n', '<C-]>', jump_edit, vim.tbl_extend('force', map_opts, { desc = 'Jump mapper pair' }))
-  vim.keymap.set('n', '<leader>li', jump_edit, vim.tbl_extend('force', map_opts, { desc = 'Mapper: Jump pair' }))
-  vim.keymap.set('n', '<leader>lD', jump_vsplit, vim.tbl_extend('force', map_opts, { desc = 'Mapper: Jump pair in split' }))
+  require('mybatis-xml.jump.mapper_pair').attach_mapper_keymaps(bufnr)
 end
 
 function M.resolve_mapper_xml(bufnr)
-  return resolve_mapper_xml(bufnr)
+  return require('mybatis-xml.jump.mapper_pair').resolve_mapper_xml(bufnr)
 end
 
 function M.resolve_mapper_java(bufnr)
-  return resolve_mapper_java(bufnr)
+  return require('mybatis-xml.jump.mapper_pair').resolve_mapper_java(bufnr)
 end
 
 function M.setup()
@@ -974,6 +745,18 @@ end
 
 M._test = {
   project_root = project_root,
+  get_tag_type = function(...) return require('mybatis-xml.jump.mapper_pair')._test.get_tag_type(...) end,
+  get_method_return_type = function(...) return require('mybatis-xml.jump.mapper_pair')._test.get_method_return_type(...) end,
+  resolve_mapper_xml = M.resolve_mapper_xml,
+  resolve_mapper_java = M.resolve_mapper_java,
+  java_fqn = function(...) return require('mybatis-xml.jump.mapper_pair')._test.java_fqn(...) end,
+  java_fqn_from_file = function(...) return require('mybatis-xml.jump.mapper_pair')._test.java_fqn_from_file(...) end,
+  xml_statement_id = function(...) return require('mybatis-xml.jump.mapper_pair')._test.xml_statement_id(...) end,
+  is_mapper_java_buffer = function(...) return require('mybatis-xml.jump.mapper_pair')._test.is_mapper_java_buffer(...) end,
+  is_mapper_xml_buffer = function(...) return require('mybatis-xml.jump.mapper_pair')._test.is_mapper_xml_buffer(...) end,
+  find_java_line = function(...) return require('mybatis-xml.jump.mapper_pair')._test.find_java_line(...) end,
+  find_xml_line = function(...) return require('mybatis-xml.jump.mapper_pair')._test.find_xml_line(...) end,
+  java_method_name = function(...) return require('mybatis-xml.jump.mapper_pair')._test.java_method_name(...) end,
 }
 
 return M

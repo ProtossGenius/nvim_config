@@ -583,4 +583,28 @@ return {
       })
     end,
   },
+
+  -- MyBatis XML IDE enhancements
+  {
+    'ProtossGenius/mybatis-xml.nvim',
+    dir = '/Users/suremoon/.local/share/nvim/lazy/mybatis-xml.nvim',
+    ft = { 'xml', 'java' },
+    dependencies = { 'mfussenegger/nvim-jdtls' },
+    config = function()
+      require('mybatis-xml').setup({
+        auto_complete = true,
+        snippets = true,
+        tag_sync = true,
+        datasource = {
+          enabled = true,
+        },
+        virtual_java = {
+          enabled = true,
+          dir = '.mybatis-xml-nvim',
+        },
+        log_level = 'INFO',
+      })
+    end,
+  },
 }
+
