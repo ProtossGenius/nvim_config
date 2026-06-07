@@ -18,4 +18,7 @@ public interface UserMapper {
 
   void updateStatus(Integer id, UserEnum eu);
 
+  default List<User> chaosFindAll() {
+    return findAll();
+  }
 }
