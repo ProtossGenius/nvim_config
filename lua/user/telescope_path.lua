@@ -66,7 +66,7 @@ local function get_filename_candidates(filename, filename_start_idx, index_map)
     local is_boundary = false
     if char:match("%u") then
       is_boundary = true
-    elseif prev_char:match("[%s%-_%.%/]") then
+    elseif prev_char:match("[%s%-_%/]") then
       is_boundary = true
     end
 
@@ -237,21 +237,50 @@ local function get_shortened_path_internal(path, query, max_len)
   if not query or query == "" then
     if #path <= max_len then
       return path
-    else
-      local components = parse_components(path, {})
-      local filename = components[#components].text
-      local candidates = get_filename_candidates(filename, components[#components].start_idx, {})
-      for _, cand in ipairs(candidates) do
-        local test_path = path:sub(1, components[#components].start_idx - 1) .. cand
-        if #test_path <= max_len then
-          return test_path
+    end
+
+    local components = parse_components(path, {})
+    local filename = components[#components].text
+    local num_dir_components = #components - 1
+
+    -- Try to keep the filename fully intact, and keep as many directory components as possible (from right to left)
+    for m = num_dir_components, 0, -1 do
+      local test_path
+      if m == num_dir_components then
+        test_path = path
+      else
+        local kept_dirs = {}
+        for i = num_dir_components - m + 1, num_dir_components do
+          table.insert(kept_dirs, components[i].text)
+        end
+        if m > 0 then
+          test_path = "*/" .. table.concat(kept_dirs, "/") .. "/" .. filename
+        else
+          test_path = "*/" .. filename
         end
       end
-      local test_path = "*/" .. candidates[1]
+
       if #test_path <= max_len then
         return test_path
       end
-      return "*/" .. filename:sub(-max_len + 3)
+    end
+
+    -- If even "*/filename" is too long, we need to shorten the filename
+    local candidates = get_filename_candidates(filename, components[#components].start_idx, {})
+    for i = #candidates, 1, -1 do
+      local cand = candidates[i]
+      local test_path = "*/" .. cand
+      if #test_path <= max_len then
+        return test_path
+      end
+    end
+
+    -- If still too long, hard truncate the filename
+    local truncate_len = max_len - 2
+    if truncate_len > 0 then
+      return "*/" .. filename:sub(-truncate_len)
+    else
+      return "*/" .. filename
     end
   end
 
