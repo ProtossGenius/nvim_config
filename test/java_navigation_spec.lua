@@ -46,6 +46,9 @@ end)
 vim.wait(10000, function() return done end)
 
 support.expect_true('java navigation declaration response received', done)
+if declaration_err then
+  print('declaration error: ' .. vim.inspect(declaration_err))
+end
 support.expect_true('java navigation declaration succeeds', declaration_err == nil)
 support.expect_true('java navigation declaration has locations', type(declaration_result) == 'table' and #declaration_result >= 1)
 local declaration_uri = declaration_result and declaration_result[1] and declaration_result[1].uri or ''
@@ -62,6 +65,9 @@ end)
 vim.wait(10000, function() return done end)
 
 support.expect_true('java navigation implementation response received', done)
+if implementation_err then
+  print('implementation error: ' .. vim.inspect(implementation_err))
+end
 support.expect_true('java navigation implementation succeeds', implementation_err == nil)
 support.expect_true('java navigation implementation has locations', type(implementation_result) == 'table' and #implementation_result >= 1)
 local implementation_uri = implementation_result and implementation_result[1] and implementation_result[1].uri or ''

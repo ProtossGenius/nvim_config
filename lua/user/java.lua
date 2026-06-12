@@ -52,6 +52,16 @@ local function go_environment()
   return env
 end
 
+local function progress_echo(message, hl)
+  vim.schedule(function()
+    vim.api.nvim_echo({ { message, hl or 'ModeMsg' } }, false, {})
+  end)
+end
+
+local function project_label(root)
+  return vim.fn.fnamemodify(root, ':t')
+end
+
 local function install_java_lsp(opts)
   opts = opts or {}
   if vim.fn.executable('go') ~= 1 then
@@ -483,27 +493,36 @@ function M.ensure_project_jdtls(root, opts)
   end
 
   project_state.starting = true
+  progress_echo('java-lsp: ensuring binary for ' .. project_label(root) .. '...', 'ModeMsg')
+  local java_lsp_bin = M.ensure_java_lsp_installed({ force = opts.refresh_binary, notify = false })
+  if not java_lsp_bin then
+   project_state.starting = false
+   progress_echo('java-lsp: install failed for ' .. project_label(root), 'ErrorMsg')
+   return false
+  end
+
   vim.schedule(function()
+   progress_echo('java-lsp: starting ' .. project_label(root) .. '...', 'ModeMsg')
    local bufnr = existing_java_bufnr or project_state.bufnr
    if not bufnr or bufnr <= 0 or not vim.api.nvim_buf_is_valid(bufnr) then
      bufnr = vim.fn.bufadd(project_state.anchor)
      project_state.bufnr = bufnr
-    end
+   end
 
-    vim.fn.bufload(bufnr)
-    vim.bo[bufnr].bufhidden = 'hide'
-    vim.bo[bufnr].buflisted = false
-    if vim.bo[bufnr].filetype ~= 'java' then
-      vim.bo[bufnr].filetype = 'java'
-    end
+   vim.fn.bufload(bufnr)
+   vim.bo[bufnr].bufhidden = 'hide'
+   vim.bo[bufnr].buflisted = false
+   if vim.bo[bufnr].filetype ~= 'java' then
+     vim.bo[bufnr].filetype = 'java'
+   end
 
-    vim.api.nvim_buf_call(bufnr, function()
-      vim.cmd('silent! LspStart jdtls')
-    end)
+   vim.api.nvim_buf_call(bufnr, function()
+     vim.cmd('silent! LspStart jdtls')
+   end)
 
-    vim.defer_fn(function()
-      project_state.starting = false
-    end, 200)
+   vim.defer_fn(function()
+     project_state.starting = false
+   end, 200)
   end)
 
   return true
@@ -831,6 +850,21 @@ function M.setup()
           M.ensure_project_jdtls(root, { force = true })
         end
       end, 300)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd('LspAttach', {
+    group = startup_group,
+    callback = function(args)
+      local client = vim.lsp.get_client_by_id(args.data and args.data.client_id or -1)
+      if not client or client.name ~= 'jdtls' then
+        return
+      end
+      local root = client_root(client)
+      if not root or not is_java_project_root(root) then
+        return
+      end
+      progress_echo('java-lsp: ready for ' .. project_label(root), 'ModeMsg')
     end,
   })
 end

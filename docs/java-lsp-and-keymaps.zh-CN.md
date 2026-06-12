@@ -199,3 +199,9 @@
 这是正常现象。准备完成后，后续进入 Java 项目的体验会稳定很多。
 
 Neovim 侧仍然继续沿用 `jdtls` 这套 Java client 接线方式来承接现有的 Java buffer 生命周期和调试生态，但真正启动的服务端进程已经切换成 `ProtossGenius/java-lsp`。
+
+如果你是从一个 Java 项目目录里直接启动 Neovim，这套配置还会在底部消息区显示：
+
+- 正在确认 `java-lsp` 二进制；
+- 正在启动当前项目的 Java LSP；
+- Java LSP 已就绪。

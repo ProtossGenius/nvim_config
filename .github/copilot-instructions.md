@@ -14,6 +14,7 @@ Run commands from the repository root.
 - Run a single headless spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/select_spec.lua')" +qa!`
 - Run the Java integration spec: `NVIM_TEST_JAVA_PROJECT="$PWD/test-projects/java17-spring-demo/core" nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_file_actions_integration.lua')" +qa!`
 - Run the Java dependency navigation spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_navigation_spec.lua')" +qa!`
+- Run the Java autostart/progress spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_autostart_spec.lua')" +qa!`
 - Package the config into an installer: `./package_nvim.sh` (writes `target/install.sh`)
 - Show packaging help: `./package_nvim.sh -h`
 
@@ -23,6 +24,7 @@ Run commands from the repository root.
 - `lua/user/plugins.lua` is the main integration layer for third-party plugins. Most behavior is either configured there directly or delegated into focused modules under `lua/user/`.
 - LSP behavior is intentionally split: `lua/user/plugins.lua` assembles `lsp-zero`, `mason`, and `nvim-java`; `lua/user/lsp.lua` owns generic `on_attach` keymaps and formatting behavior; `lua/user/java.lua` owns JDTLS runtime detection, mapper-pair navigation, and Java-specific setup.
 - Java buffers use the repository's own `ProtossGenius/java-lsp` binary, installed through `go install` into `stdpath('data')/java-lsp/bin/java-lsp`. `:JavaLspInstall` is the supported install/update entrypoint.
+- Entering a Java project should start Java LSP immediately from the project root and echo progress in the command area while the binary is being ensured and the client is starting.
 - File operations cross module boundaries: `lua/user/file_actions.lua` handles create/rename/delete for current buffers and Dirvish entries, while Java renames cooperate with JDTLS so type names, open buffers, and file notifications stay in sync.
 - The config replaces several builtin/editor defaults with custom modules: `lua/user/select.lua` overrides `vim.ui.select`, `lua/user/comment.lua` adds Treesitter-aware commenting/textobjects, `lua/user/templates.lua` auto-populates new files, and `lua/user/llm/*` implements local-provider translation and ask flows.
 
