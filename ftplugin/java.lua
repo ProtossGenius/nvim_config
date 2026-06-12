@@ -63,6 +63,8 @@ if lombok_jar == "" then
     vim.fn.mkdir(lombok_fallback_dir, "p")
     vim.fn.system({
       "curl", "-sL",
+      "--connect-timeout", "3",
+      "--max-time", "10",
       "https://repo1.maven.org/maven2/org/projectlombok/lombok/1.18.34/lombok-1.18.34.jar",
       "-o", lombok_fallback_path
     })

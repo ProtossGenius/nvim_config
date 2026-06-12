@@ -12,14 +12,47 @@ local function should_log()
   return not is_headless_cached
 end
 
+local log_buffer = {}
+local flush_timer = nil
+
+local function flush_buffer()
+  if #log_buffer == 0 then
+    return
+  end
+
+  local paths_content = {}
+  for _, entry in ipairs(log_buffer) do
+    paths_content[entry.path] = paths_content[entry.path] or {}
+    table.insert(paths_content[entry.path], entry.line)
+  end
+
+  log_buffer = {}
+
+  for path, lines in pairs(paths_content) do
+    local f = io.open(path, 'a')
+    if f then
+      f:write(table.concat(lines, '\n') .. '\n')
+      f:close()
+    end
+  end
+end
+
 local function append_to_file(path, line)
   if not should_log() then
     return
   end
-  local f = io.open(path, 'a')
-  if f then
-    f:write(line .. '\n')
-    f:close()
+  table.insert(log_buffer, { path = path, line = line })
+
+  if not flush_timer then
+    local uv = vim.uv or vim.loop
+    flush_timer = uv.new_timer()
+    flush_timer:start(100, 0, vim.schedule_wrap(function()
+      flush_buffer()
+      if flush_timer then
+        flush_timer:close()
+        flush_timer = nil
+      end
+    end))
   end
 end
 
@@ -114,6 +147,13 @@ function M.setup()
     end
     return original_require(modname)
   end
+
+  -- Flush any pending logs before exiting
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    callback = function()
+      flush_buffer()
+    end,
+  })
 end
 
 return M

@@ -317,8 +317,73 @@ function M.patch_jdtls_workspace_path()
   lsp_utils._user_pid_workspace_patch = true
 end
 
+local function is_home_directory(path)
+  if not path or path == '' then
+    return false
+  end
+  local home = os.getenv('HOME') or os.getenv('USERPROFILE')
+  if home then
+    return vim.fs.normalize(path) == vim.fs.normalize(home)
+  end
+  return false
+end
+
+local function scan_for_java_file(dir, current_depth, max_depth)
+  current_depth = current_depth or 1
+  max_depth = max_depth or 3
+  if current_depth > max_depth then
+    return nil
+  end
+
+  local handle = uv.fs_scandir(dir)
+  if not handle then
+    return nil
+  end
+
+  local ignore_dirs = {
+    ['.git'] = true,
+    ['node_modules'] = true,
+    ['build'] = true,
+    ['target'] = true,
+    ['.gradle'] = true,
+    ['.idea'] = true,
+    ['.settings'] = true,
+    ['bin'] = true,
+    ['.local'] = true,
+    ['.cache'] = true,
+  }
+
+  local subdirs = {}
+
+  while true do
+    local name, type = uv.fs_scandir_next(handle)
+    if not name then
+      break
+    end
+
+    if type == 'directory' then
+      if not ignore_dirs[name] then
+        table.insert(subdirs, vim.fs.joinpath(dir, name))
+      end
+    elseif type == 'file' or type == 'link' then
+      if name:match('%.java$') then
+        return vim.fs.joinpath(dir, name)
+      end
+    end
+  end
+
+  for _, subdir in ipairs(subdirs) do
+    local found = scan_for_java_file(subdir, current_depth + 1, max_depth)
+    if found then
+      return found
+    end
+  end
+
+  return nil
+end
+
 local function is_java_project_root(root)
-  if not root or root == '' then
+  if not root or root == '' or is_home_directory(root) then
     return false
   end
   for _, marker in ipairs({
@@ -338,10 +403,13 @@ local function is_java_project_root(root)
 end
 
 local function first_java_file(root)
+  if is_home_directory(root) then
+    return nil
+  end
+
   for _, candidate_root in ipairs({
     vim.fs.joinpath(root, 'src', 'main', 'java'),
     vim.fs.joinpath(root, 'src', 'test', 'java'),
-    root,
   }) do
     if is_dir(candidate_root) then
       local matches = vim.fs.find(function(name)
@@ -356,6 +424,8 @@ local function first_java_file(root)
       end
     end
   end
+
+  return scan_for_java_file(root, 1, 3)
 end
 
 local function client_root(client)
