@@ -139,6 +139,7 @@
 - DAP 面板 / 自定义命令 / C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
 - 仓库内置 `test-projects/java17-spring-demo/core` 上的 Java LSP 文件重命名集成测试。
+- Java Spring demo 上的依赖跳转、Lombok getter/setter 补全、返回类型排序补全与 unresolved type diagnostics 回归测试。
 
 ### Java LSP 安装
 

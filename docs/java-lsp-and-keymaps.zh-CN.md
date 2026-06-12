@@ -22,6 +22,12 @@
 
 都会走 LSP definition。对于 `String`、JAR 里的类、外部依赖类，优先打开源码；如果没有源码，就打开反编译后的 class 内容。
 
+`SPC l D` / `gD` / `SPC l i` 也已经接到同一套 Java LSP 语义链路上：
+
+- `SPC l D` / `gD`：声明跳转；
+- `SPC l i`：实现跳转；
+- 对 `log.info` 这类 `@Slf4j` 生成 logger，也会把 `log` 解析成 `org.slf4j.Logger` 再去做依赖跳转。
+
 ### 2.2 Lombok 支持
 
 已经打开 `nvim-java` 的 Lombok 支持；它会在启动 JDTLS 时注入 `lombok` agent，所以语言服务器能感知 `@Data` 一类注解生成的成员。
@@ -31,6 +37,12 @@
 - 自动补全可以看到 getter / setter / builder 等生成成员；
 - hover / definition / references 能识别这些成员的类型与来源；
 - 在字段上执行重命名时，外部对生成访问器的调用通常也能跟着更新。
+
+另外，这套 Java LSP 现在会在类似下面的场景里做更贴近 Java 语义的补全：
+
+- `request.`：会给出 `@Data` 生成的 `getXxx()` / `setXxx(...)`；
+- `userService.`：会按当前赋值左侧的期望返回类型，把更匹配的方法排到更前面；
+- 方法补全会自动带上括号；有参数时会把光标落到第一个参数占位处。
 
 这次配置里，`person.getName()` 这类外部调用已经能够被解析回 `Person.java`；把字段 `name` 重命名为 `fullName` 时，外部调用会同步变成 `getFullName()`。
 
