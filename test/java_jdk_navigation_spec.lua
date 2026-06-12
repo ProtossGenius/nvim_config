@@ -48,4 +48,3 @@ support.expect_true('java jdk navigation opens RuntimeException source', uri:fin
 
 vim.cmd('bdelete!')
 support.flush()
-
