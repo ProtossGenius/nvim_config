@@ -13,6 +13,7 @@ Run commands from the repository root.
 - Full regression suite: `./test/run_regression_suite.sh`
 - Run a single headless spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/select_spec.lua')" +qa!`
 - Run the Java integration spec: `NVIM_TEST_JAVA_PROJECT="$PWD/test-projects/java17-spring-demo/core" nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_file_actions_integration.lua')" +qa!`
+- Run the Java dependency navigation spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_navigation_spec.lua')" +qa!`
 - Package the config into an installer: `./package_nvim.sh` (writes `target/install.sh`)
 - Show packaging help: `./package_nvim.sh -h`
 

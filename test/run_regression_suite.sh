@@ -13,6 +13,9 @@ run_spec() {
 echo "==> startup smoke"
 (cd "$ROOT" && nvim --headless '+qa')
 
+echo "==> install java-lsp"
+nvim --headless -u "$ROOT/init.lua" +"lua require('user.java').ensure_java_lsp_installed({ force = true, notify = false })" +qa!
+
 run_spec "test/commenting_spec.lua"
 run_spec "test/lsp_keymaps_spec.lua"
 run_spec "test/select_spec.lua"
@@ -26,6 +29,7 @@ run_spec "test/dap_cpp_spec.lua"
 run_spec "test/cpp_keymap_scope_spec.lua"
 run_spec "test/java_autostart_spec.lua"
 run_spec "test/java_double_layer_autostart_spec.lua"
+run_spec "test/java_navigation_spec.lua"
 run_spec "test/java_signature_help_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 run_spec "test/scratchpad_spec.lua"
