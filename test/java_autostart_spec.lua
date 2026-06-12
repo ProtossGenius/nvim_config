@@ -35,6 +35,8 @@ vim.wait(300)
 support.expect_true('java autostart issues LspStart jdtls', vim.tbl_contains(commands, 'silent! LspStart jdtls'))
 support.expect_true('java autostart shows ensure progress', vim.tbl_contains(progress_messages, 'java-lsp: ensuring binary for ' .. vim.fn.fnamemodify(root, ':t') .. '...'))
 support.expect_true('java autostart shows start progress', vim.tbl_contains(progress_messages, 'java-lsp: starting ' .. vim.fn.fnamemodify(root, ':t') .. '...'))
+local storage_path = user_java._test.java_lsp_storage_path(root)
+support.expect_true('java autostart storage path includes current pid', storage_path:find('nvim%-' .. tostring(vim.fn.getpid()), 1) ~= nil)
 
 user_java.ensure_java_lsp_installed = original_install
 vim.api.nvim_echo = original_echo

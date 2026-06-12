@@ -14,6 +14,7 @@ end
 -- 2. Define workspace directory for JDTLS
 local project_name = vim.fn.fnamemodify(root_dir, ":t")
 local workspace_dir = home .. "/.local/share/nvim/jdtls-workspace/" .. project_name
+local storage_path = user_java.java_lsp_storage_path(root_dir)
 
 -- 3. Install or locate java-lsp
 local java_lsp_bin = user_java.ensure_java_lsp_installed({ notify = false })
@@ -145,7 +146,7 @@ end
 -- 5. Build Configuration
 local cmd = {
   java_lsp_bin,
-  "-storage", workspace_dir .. "/index",
+  "-storage", storage_path,
 }
 
 local java_settings = {

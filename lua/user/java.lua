@@ -114,6 +114,13 @@ local function runtime_name(major)
   return 'JavaSE-' .. major
 end
 
+local function storage_project_key(root)
+  local normalized = vim.fs.normalize(root or vim.fn.getcwd())
+  local name = vim.fn.fnamemodify(normalized, ':t')
+  local digest = vim.fn.sha256(normalized):sub(1, 12)
+  return string.format('%s-%s', name, digest)
+end
+
 local function major_from_version(version)
   if not version or version == '' then
     return nil
@@ -732,6 +739,16 @@ function M.java_lsp_bin_path()
   return java_lsp_bin_path
 end
 
+function M.java_lsp_storage_path(root)
+  return vim.fs.joinpath(
+    vim.fn.stdpath('data'),
+    'jdtls-workspace',
+    storage_project_key(root),
+    'nvim-' .. tostring(vim.fn.getpid()),
+    'index'
+  )
+end
+
 function M.ensure_java_lsp_installed(opts)
   opts = opts or {}
   if not opts.force and vim.fn.executable(java_lsp_bin_path) == 1 then
@@ -871,6 +888,7 @@ end
 
 M._test = {
   project_root = project_root,
+  java_lsp_storage_path = M.java_lsp_storage_path,
   get_tag_type = function(...) return require('mybatis-xml.jump.mapper_pair')._test.get_tag_type(...) end,
   get_method_return_type = function(...) return require('mybatis-xml.jump.mapper_pair')._test.get_method_return_type(...) end,
   resolve_mapper_xml = M.resolve_mapper_xml,

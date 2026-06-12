@@ -5,6 +5,7 @@ local service_file = vim.fn.stdpath('config') .. '/test-projects/java17-spring-d
 _G.initial_cwd = vim.fn.stdpath('config') .. '/test-projects/java17-spring-demo'
 vim.cmd('cd ' .. vim.fn.fnameescape(_G.initial_cwd))
 vim.cmd('edit ' .. vim.fn.fnameescape(service_file))
+vim.bo.swapfile = false
 
 local attached = vim.wait(60000, function()
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
@@ -31,8 +32,9 @@ for idx, line in ipairs(lines) do
 end
 
 support.expect_true('java navigation found log.info line', info_line ~= nil)
+local log_col = lines[info_line]:find('log', 1, true) or 1
 local info_col = lines[info_line]:find('info', 1, true) or 1
-vim.api.nvim_win_set_cursor(0, { info_line, info_col - 1 })
+vim.api.nvim_win_set_cursor(0, { info_line, log_col - 1 })
 vim.wait(200)
 
 local done = false
@@ -72,6 +74,29 @@ support.expect_true('java navigation implementation succeeds', implementation_er
 support.expect_true('java navigation implementation has locations', type(implementation_result) == 'table' and #implementation_result >= 1)
 local implementation_uri = implementation_result and implementation_result[1] and implementation_result[1].uri or ''
 support.expect_true('java navigation implementation opens logback Logger source', implementation_uri:find('logback%-classic', 1) ~= nil)
+
+local done_completion = false
+local completion_err = nil
+local completion_result = nil
+vim.api.nvim_win_set_cursor(0, { info_line, log_col + 3 })
+vim.lsp.buf_request(0, 'textDocument/completion', vim.lsp.util.make_position_params(), function(err, result)
+  completion_err = err
+  completion_result = result
+  done_completion = true
+end)
+vim.wait(10000, function() return done_completion end)
+
+support.expect_true('java navigation completion response received', done_completion)
+support.expect_true('java navigation completion succeeds', completion_err == nil)
+local completion_items = completion_result and completion_result.items or {}
+local has_info = false
+for _, item in ipairs(completion_items) do
+  if item.label == 'info' then
+    has_info = true
+    break
+  end
+end
+support.expect_true('java navigation completion contains info', has_info)
 
 vim.cmd('bdelete!')
 support.flush()
