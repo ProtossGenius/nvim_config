@@ -84,5 +84,33 @@ items = completion_result and completion_result.items or {}
 support.expect_true('java completion userService. has results', #items > 0)
 support.expect_equal('java completion ranks listUsers first for List<User> assignment', items[1].label, 'listUsers')
 
+vim.api.nvim_buf_set_lines(0, create_user_line - 1, create_user_line, false, { '    List.' })
+local list_line = vim.api.nvim_buf_get_lines(0, create_user_line - 1, create_user_line, false)[1]
+local list_col = list_line:find('List%.', 1) or 1
+vim.api.nvim_win_set_cursor(0, { create_user_line, list_col - 1 + #'List.' })
+vim.wait(300)
+
+done = false
+completion_err = nil
+completion_result = nil
+vim.lsp.buf_request(0, 'textDocument/completion', vim.lsp.util.make_position_params(), function(err, result)
+  completion_err = err
+  completion_result = result
+  done = true
+end)
+vim.wait(10000, function() return done end)
+
+support.expect_true('java completion List. response received', done)
+support.expect_true('java completion List. succeeds', completion_err == nil)
+items = completion_result and completion_result.items or {}
+local has_of = false
+for _, item in ipairs(items) do
+  if item.label == 'of' then
+    has_of = true
+    break
+  end
+end
+support.expect_true('java completion List. contains of', has_of)
+
 vim.cmd('bdelete!')
 support.flush()
