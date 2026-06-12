@@ -2,6 +2,8 @@
 
 local home = os.getenv("HOME")
 local jdtls = require("jdtls")
+local local_java_lsp_bin = home .. "/workspace/java-lsp/target/java-lsp"
+local use_local_java_lsp = vim.fn.executable(local_java_lsp_bin) == 1
 
 -- 1. Detect root directory using the custom project_root calculation
 local user_java = require("user.java")
@@ -17,7 +19,7 @@ local workspace_dir = home .. "/.local/share/nvim/jdtls-workspace/" .. project_n
 
 -- 3. JDTLS Executable check
 local jdtls_bin = home .. "/.local/share/nvim/mason/bin/jdtls"
-if vim.fn.executable(jdtls_bin) == 0 then
+if not use_local_java_lsp and vim.fn.executable(jdtls_bin) == 0 then
   vim.notify("JDTLS executable not found. Please run :MasonInstall jdtls java-debug-adapter java-test", vim.log.levels.WARN)
   return
 end
@@ -143,11 +145,19 @@ if not runtimes then
 end
 
 -- 5. Build Configuration
-local cmd = {
-  jdtls_bin,
-  "-data", workspace_dir
-}
-if lombok_jar ~= "" then
+local cmd
+if use_local_java_lsp then
+  cmd = {
+    local_java_lsp_bin,
+    "-storage", workspace_dir .. "/index",
+  }
+else
+  cmd = {
+    jdtls_bin,
+    "-data", workspace_dir
+  }
+end
+if not use_local_java_lsp and lombok_jar ~= "" then
   table.insert(cmd, "--jvm-arg=-javaagent:" .. lombok_jar)
 end
 
@@ -202,9 +212,6 @@ local config = {
     bundles = bundles
   },
   on_attach = function(client, bufnr)
-    -- Initialize DAP (Java Debugger) when LSP attaches
-    jdtls.setup_dap({ hotcodereplace = "auto" })
-    
     -- standard LSP Keymaps inside java buffers
     local opts = { silent = true, buffer = bufnr }
     vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
@@ -217,14 +224,19 @@ local config = {
     vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
     vim.keymap.set("n", "<leader>f", function() vim.lsp.buf.format { async = true } end, opts)
 
-    -- Jdtls specific keymaps
-    vim.keymap.set("n", "<leader>co", jdtls.organize_imports, { desc = "Java: Organize Imports", buffer = bufnr })
-    vim.keymap.set("n", "<leader>ct", jdtls.test_class, { desc = "Java: Test Class", buffer = bufnr })
-    vim.keymap.set("n", "<leader>cn", jdtls.test_nearest_method, { desc = "Java: Test Nearest Method", buffer = bufnr })
-    vim.keymap.set("n", "<leader>cxv", jdtls.extract_variable, { desc = "Java: Extract Variable", buffer = bufnr })
-    vim.keymap.set("v", "<leader>cxv", function() jdtls.extract_variable(true) end, { desc = "Java: Extract Variable", buffer = bufnr })
-    vim.keymap.set("n", "<leader>cxc", jdtls.extract_constant, { desc = "Java: Extract Constant", buffer = bufnr })
-    vim.keymap.set("v", "<leader>cxc", function() jdtls.extract_constant(true) end, { desc = "Java: Extract Constant", buffer = bufnr })
+    if not use_local_java_lsp then
+      -- Initialize DAP (Java Debugger) when LSP attaches
+      jdtls.setup_dap({ hotcodereplace = "auto" })
+
+      -- Jdtls specific keymaps
+      vim.keymap.set("n", "<leader>co", jdtls.organize_imports, { desc = "Java: Organize Imports", buffer = bufnr })
+      vim.keymap.set("n", "<leader>ct", jdtls.test_class, { desc = "Java: Test Class", buffer = bufnr })
+      vim.keymap.set("n", "<leader>cn", jdtls.test_nearest_method, { desc = "Java: Test Nearest Method", buffer = bufnr })
+      vim.keymap.set("n", "<leader>cxv", jdtls.extract_variable, { desc = "Java: Extract Variable", buffer = bufnr })
+      vim.keymap.set("v", "<leader>cxv", function() jdtls.extract_variable(true) end, { desc = "Java: Extract Variable", buffer = bufnr })
+      vim.keymap.set("n", "<leader>cxc", jdtls.extract_constant, { desc = "Java: Extract Constant", buffer = bufnr })
+      vim.keymap.set("v", "<leader>cxc", function() jdtls.extract_constant(true) end, { desc = "Java: Extract Constant", buffer = bufnr })
+    end
   end
 }
 

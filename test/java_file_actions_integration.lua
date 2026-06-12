@@ -1,7 +1,7 @@
 local support = dofile(vim.fn.stdpath('config') .. '/test/spec_support.lua')
 local file_actions = require('user.file_actions')
 
-local project_root = vim.fs.normalize(vim.env.NVIM_TEST_JAVA_PROJECT or vim.fn.expand('~/workspace/test-java'))
+local project_root = vim.fs.normalize(vim.env.NVIM_TEST_JAVA_PROJECT or (vim.fn.stdpath('config') .. '/test-projects/java17-spring-demo/core'))
 local java_dir = project_root .. '/src/main/java/com/example/demo'
 local suffix = tostring(os.time())
 local old_class = 'NvimRenameSpec' .. suffix

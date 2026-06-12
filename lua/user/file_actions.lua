@@ -216,6 +216,32 @@ local function rename_java_type(client, bufnr, old_type_name, new_type_name)
   return true, touched_bufnrs
 end
 
+local function rename_java_type_locally(bufnr, old_type_name, new_type_name)
+  local line_count = math.min(vim.api.nvim_buf_line_count(bufnr), 200)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, line_count, false)
+  local escaped = vim.pesc(old_type_name)
+  local declaration_patterns = {
+    '(@interface%s+)' .. escaped .. '(%f[^%w_])',
+    '(class%s+)' .. escaped .. '(%f[^%w_])',
+    '(interface%s+)' .. escaped .. '(%f[^%w_])',
+    '(enum%s+)' .. escaped .. '(%f[^%w_])',
+    '(record%s+)' .. escaped .. '(%f[^%w_])',
+  }
+
+  for index, line in ipairs(lines) do
+    for _, pattern in ipairs(declaration_patterns) do
+      local replaced, substitutions = line:gsub(pattern, '%1' .. new_type_name .. '%2', 1)
+      if substitutions > 0 then
+        vim.api.nvim_buf_set_lines(bufnr, index - 1, index, false, { replaced })
+        write_modified_buffers({ bufnr })
+        return true, { bufnr }
+      end
+    end
+  end
+
+  return false, 'Could not find the Java type declaration to rename.'
+end
+
 local function apply_java_file_rename(old_path, new_path)
   local client = find_jdtls_client(old_path)
   if not client then
@@ -243,7 +269,13 @@ local function apply_java_file_rename(old_path, new_path)
 
   local old_type_name = vim.fn.fnamemodify(old_path, ':t:r')
   local new_type_name = vim.fn.fnamemodify(new_path, ':t:r')
-  local renamed_type, rename_result = rename_java_type(client, bufnr, old_type_name, new_type_name)
+  local renamed_type
+  local rename_result
+  if client:supports_method('textDocument/rename') then
+    renamed_type, rename_result = rename_java_type(client, bufnr, old_type_name, new_type_name)
+  else
+    renamed_type, rename_result = rename_java_type_locally(bufnr, old_type_name, new_type_name)
+  end
   if not renamed_type then
     return false, rename_result
   end

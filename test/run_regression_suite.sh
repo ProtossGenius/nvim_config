@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-JAVA_PROJECT="${NVIM_TEST_JAVA_PROJECT:-$HOME/workspace/test-java}"
+JAVA_PROJECT="${NVIM_TEST_JAVA_PROJECT:-$ROOT/test-projects/java17-spring-demo/core}"
 
 run_spec() {
   local spec="$1"
@@ -33,4 +33,3 @@ run_spec "test/telescope_path_spec.lua"
 
 echo "==> test/java_file_actions_integration.lua"
 NVIM_TEST_JAVA_PROJECT="$JAVA_PROJECT" nvim --headless -u "$ROOT/init.lua" +"lua local ok,err = pcall(dofile, '$ROOT/test/java_file_actions_integration.lua'); for _, c in ipairs(vim.lsp.get_clients()) do pcall(function() c:terminate() end) end; if not ok then print(err); vim.cmd('cquit') else vim.cmd('qa!') end"
-
