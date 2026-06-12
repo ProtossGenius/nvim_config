@@ -179,15 +179,23 @@
 
 ## 5. 第一次使用 Java 的注意事项
 
-第一次启用这套配置，或第一次真正打开 Java 项目时，`nvim-java` 可能会自动准备：
+第一次启用这套配置，或第一次真正打开 Java 项目时，配置会优先确保 `ProtossGenius/java-lsp` 已可用；如果本机还没有安装它，可以执行：
 
-- JDTLS
+```vim
+:JavaLspInstall
+```
+
+它会通过 `go install` 安装当前使用的 Java LSP：
+
+- 如果本机存在 `~/workspace/java-lsp`，就直接在那个仓库里执行 `go install ./cmd/java-lsp`
+- 否则回退到 `go install github.com/ProtossGenius/java-lsp/cmd/java-lsp@latest`
+
+除此之外，`nvim-java` 仍然可能自动准备：
+
 - Lombok
 - Java test / debug 支持
 - 它需要的运行时 JDK
 
 这是正常现象。准备完成后，后续进入 Java 项目的体验会稳定很多。
 
-另外，配置里也把 `jdtls` 加进了 Mason 的默认安装列表；在一台全新的机器上，只要装好这套 Neovim 配置，首次进入 Java 项目时也会自动补齐并启用对应语言服务，而不需要手动先装系统级 `jdtls`。
-
-这次没有额外叠加 `nvim-jdtls`。原因是它更偏向手工配置：README 明确写了更适合“偏好 configuration as code、且不把易用性放在首位”的用户；而 `nvim-java` 这边已经覆盖了 JDTLS、Lombok、测试、调试、运行器和 Spring 支持，并且它自己的配置项里还带有 `nvim_jdtls_conflict` 检查。对这份仓库来说，继续保持单一的 `nvim-java + jdtls` 方案更稳，也更省维护成本。
+Neovim 侧仍然继续沿用 `jdtls` 这套 Java client 接线方式来承接现有的 Java buffer 生命周期和调试生态，但真正启动的服务端进程已经切换成 `ProtossGenius/java-lsp`。

@@ -2,8 +2,6 @@
 
 local home = os.getenv("HOME")
 local jdtls = require("jdtls")
-local local_java_lsp_bin = home .. "/workspace/java-lsp/target/java-lsp"
-local use_local_java_lsp = vim.fn.executable(local_java_lsp_bin) == 1
 
 -- 1. Detect root directory using the custom project_root calculation
 local user_java = require("user.java")
@@ -17,10 +15,10 @@ end
 local project_name = vim.fn.fnamemodify(root_dir, ":t")
 local workspace_dir = home .. "/.local/share/nvim/jdtls-workspace/" .. project_name
 
--- 3. JDTLS Executable check
-local jdtls_bin = home .. "/.local/share/nvim/mason/bin/jdtls"
-if not use_local_java_lsp and vim.fn.executable(jdtls_bin) == 0 then
-  vim.notify("JDTLS executable not found. Please run :MasonInstall jdtls java-debug-adapter java-test", vim.log.levels.WARN)
+-- 3. Install or locate java-lsp
+local java_lsp_bin = user_java.ensure_java_lsp_installed({ notify = false })
+if not java_lsp_bin then
+  vim.notify("java-lsp is not available. Run :JavaLspInstall to install it with Go.", vim.log.levels.WARN)
   return
 end
 
@@ -145,21 +143,10 @@ if not runtimes then
 end
 
 -- 5. Build Configuration
-local cmd
-if use_local_java_lsp then
-  cmd = {
-    local_java_lsp_bin,
-    "-storage", workspace_dir .. "/index",
-  }
-else
-  cmd = {
-    jdtls_bin,
-    "-data", workspace_dir
-  }
-end
-if not use_local_java_lsp and lombok_jar ~= "" then
-  table.insert(cmd, "--jvm-arg=-javaagent:" .. lombok_jar)
-end
+local cmd = {
+  java_lsp_bin,
+  "-storage", workspace_dir .. "/index",
+}
 
 local java_settings = {
   signatureHelp = { enabled = true },
@@ -223,20 +210,6 @@ local config = {
     vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
     vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
     vim.keymap.set("n", "<leader>f", function() vim.lsp.buf.format { async = true } end, opts)
-
-    if not use_local_java_lsp then
-      -- Initialize DAP (Java Debugger) when LSP attaches
-      jdtls.setup_dap({ hotcodereplace = "auto" })
-
-      -- Jdtls specific keymaps
-      vim.keymap.set("n", "<leader>co", jdtls.organize_imports, { desc = "Java: Organize Imports", buffer = bufnr })
-      vim.keymap.set("n", "<leader>ct", jdtls.test_class, { desc = "Java: Test Class", buffer = bufnr })
-      vim.keymap.set("n", "<leader>cn", jdtls.test_nearest_method, { desc = "Java: Test Nearest Method", buffer = bufnr })
-      vim.keymap.set("n", "<leader>cxv", jdtls.extract_variable, { desc = "Java: Extract Variable", buffer = bufnr })
-      vim.keymap.set("v", "<leader>cxv", function() jdtls.extract_variable(true) end, { desc = "Java: Extract Variable", buffer = bufnr })
-      vim.keymap.set("n", "<leader>cxc", jdtls.extract_constant, { desc = "Java: Extract Constant", buffer = bufnr })
-      vim.keymap.set("v", "<leader>cxc", function() jdtls.extract_constant(true) end, { desc = "Java: Extract Constant", buffer = bufnr })
-    end
   end
 }
 

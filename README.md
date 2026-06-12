@@ -121,7 +121,7 @@
   - CMake C++ 项目默认生成 `launch` 和 `attach-process`；
   - 会尽量根据 Maven / Gradle / Eclipse / main class / CMake target 信息生成默认值，并写入 `_detected`；
   - Java 的 `port` 会直接带上检测到的 `mainClass`，这样可以兼容 `nvim-java` 当前的 Java attach 处理；
-  - Java 的 `port` / `launch` 都要求当前项目已有活动的 `jdtls`，所以先打开一个该项目里的 Java 文件，确认 `:LspInfo` 里有 `jdtls`，再启动调试；
+  - Java 的 `port` / `launch` 都要求当前项目已有活动的 Java LSP，所以先打开一个该项目里的 Java 文件，确认 `:LspInfo` 里有 `jdtls` 这个 Java client，再启动调试；
   - C++ 的 `attach-process` 会先弹出一个搜索框，默认按配置里的进程关键字搜索；只命中一个进程就直接附加，命中多个时会列出线程数和启动参数供选择。
 
 ## 测试
@@ -138,7 +138,18 @@
 - Java Spring demo 上的 DAP 命令/动作集成测试（launch 选择、`step_project`、`next`、`repeat_last_action`）；
 - DAP 面板 / 自定义命令 / C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
-- `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
+- 仓库内置 `test-projects/java17-spring-demo/core` 上的 Java LSP 文件重命名集成测试。
+
+### Java LSP 安装
+
+Java 语言服务默认使用 `ProtossGenius/java-lsp`，而不是 Mason 下载的 `jdtls` 二进制。
+
+- 首次安装或手动升级可执行 `:JavaLspInstall`
+- 该命令会通过 `go install` 安装：
+  - 如果本机存在 `~/workspace/java-lsp`，则直接从本地仓库执行 `go install ./cmd/java-lsp`
+  - 否则回退到 `go install github.com/ProtossGenius/java-lsp/cmd/java-lsp@latest`
+
+安装后的二进制会放在 `stdpath('data')/java-lsp/bin/java-lsp`，Java buffer 启动时也会优先使用它。
 
 ## Java 示例项目
 

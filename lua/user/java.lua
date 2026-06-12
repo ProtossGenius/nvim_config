@@ -16,6 +16,11 @@ local managed_runtime_scan_patterns = {
   vim.fs.joinpath(vim.fn.stdpath('data'), 'nvim-java', 'packages', 'openjdk', '*', 'jdk-*'),
 }
 
+local java_lsp_repo_dir = vim.fs.normalize(vim.env.JAVA_LSP_REPO_DIR or vim.fn.expand('~/workspace/java-lsp'))
+local java_lsp_bin_dir = vim.fs.joinpath(vim.fn.stdpath('data'), 'java-lsp', 'bin')
+local java_lsp_bin_path = vim.fs.joinpath(java_lsp_bin_dir, 'java-lsp')
+local java_lsp_module = 'github.com/ProtossGenius/java-lsp/cmd/java-lsp@latest'
+
 local state
 
 local function fs_stat(path)
@@ -39,6 +44,56 @@ local function read_file_lines(path)
   end
 
   return lines
+end
+
+local function go_environment()
+  local env = vim.fn.environ()
+  env.GOBIN = java_lsp_bin_dir
+  return env
+end
+
+local function install_java_lsp(opts)
+  opts = opts or {}
+  if vim.fn.executable('go') ~= 1 then
+    vim.notify('Go executable not found; cannot install java-lsp.', vim.log.levels.ERROR)
+    return nil
+  end
+
+  vim.fn.mkdir(java_lsp_bin_dir, 'p')
+
+  local cmd
+  local cwd
+  if is_dir(java_lsp_repo_dir) and is_file(vim.fs.joinpath(java_lsp_repo_dir, 'go.mod')) then
+    cmd = { 'go', 'install', './cmd/java-lsp' }
+    cwd = java_lsp_repo_dir
+  else
+    cmd = { 'go', 'install', java_lsp_module }
+  end
+
+  if opts.notify ~= false then
+    vim.notify('Installing java-lsp with Go...', vim.log.levels.INFO)
+  end
+
+  local proc = vim.system(cmd, {
+    cwd = cwd,
+    env = go_environment(),
+    text = true,
+  }):wait()
+
+  if proc.code ~= 0 then
+    local output = table.concat({
+      proc.stdout or '',
+      proc.stderr or '',
+    }, '\n')
+    vim.notify('Failed to install java-lsp:\n' .. output, vim.log.levels.ERROR)
+    return nil
+  end
+
+  if opts.notify ~= false then
+    vim.notify('java-lsp installed at ' .. java_lsp_bin_path, vim.log.levels.INFO)
+  end
+
+  return java_lsp_bin_path
 end
 
 local function runtime_name(major)
@@ -654,6 +709,19 @@ function M.jdtls_config(base_settings)
   return config
 end
 
+function M.java_lsp_bin_path()
+  return java_lsp_bin_path
+end
+
+function M.ensure_java_lsp_installed(opts)
+  opts = opts or {}
+  if not opts.force and vim.fn.executable(java_lsp_bin_path) == 1 then
+    return java_lsp_bin_path
+  end
+
+  return install_java_lsp(opts)
+end
+
 function M.jump_mapper_pair(open_cmd)
   require('mybatis-xml.jump.mapper_pair').jump_mapper_pair(open_cmd)
 end
@@ -703,6 +771,12 @@ function M.setup()
   end, {
     bang = true,
     desc = 'Jump between Mapper.java and Mapper.xml',
+  })
+
+  vim.api.nvim_create_user_command('JavaLspInstall', function()
+    M.ensure_java_lsp_installed({ force = true })
+  end, {
+    desc = 'Install java-lsp with go install',
   })
 
   vim.api.nvim_create_autocmd({ 'BufEnter', 'FileType' }, {

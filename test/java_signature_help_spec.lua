@@ -46,31 +46,24 @@ print("Sending textDocument/signatureHelp request to JDTLS...")
 local done = false
 local response_err = nil
 local response_result = nil
-local client = vim.lsp.get_clients({ bufnr = 0 })[1]
 
-support.expect_true('Java LSP client is available', client ~= nil)
-
-local params = vim.lsp.util.make_position_params(0, client and client.offset_encoding or 'utf-16')
-client:request('textDocument/signatureHelp', params, function(err, result, ctx)
+local params = vim.lsp.util.make_position_params()
+vim.lsp.buf_request(0, 'textDocument/signatureHelp', params, function(err, result, ctx)
   response_err = err
   response_result = result
   done = true
-end, 0)
+end)
 
 vim.wait(10000, function() return done end)
 
 support.expect_true('LSP response received', done)
-support.expect_true('Java LSP returns either a result or an RPC error', response_err ~= nil or response_result ~= nil)
-if response_err then
-  print("Captured RPC Error Code: " .. tostring(response_err.code))
-  print("Captured RPC Error Message: " .. tostring(response_err.message))
-  local is_legacy_jdtls_error = response_err.code == -32603
-    and type(response_err.data) == 'string'
-    and response_err.data:find("ClassCastException", 1, true) ~= nil
-  local is_local_java_lsp_error = response_err.code == -32601
-    and type(response_err.message) == 'string'
-    and response_err.message:lower():find('method not found', 1, true) ~= nil
-  support.expect_true('RPC error matches supported Java LSP backends', is_legacy_jdtls_error or is_local_java_lsp_error)
+support.expect_true('Java LSP returns signature help without RPC error', response_err == nil)
+support.expect_true('Java LSP returns a signature help payload', response_result ~= nil)
+if response_result then
+  support.expect_true('signature help returns at least one signature', type(response_result.signatures) == 'table' and #response_result.signatures >= 1)
+  local first_signature = response_result.signatures and response_result.signatures[1]
+  support.expect_true('signature help label mentions String format', first_signature and first_signature.label and first_signature.label:find('String format', 1, true) ~= nil)
+support.expect_equal('active parameter points at the format string argument', response_result.activeParameter, 0)
 end
 
 -- Verify that the global signatureHelp handler wrapper handles it gracefully
@@ -82,13 +75,6 @@ if ok_lsp_sig then
   -- Test the default / current setup config for ignore_error
   local ignore_error_fn = _LSP_SIG_CFG and _LSP_SIG_CFG.ignore_error
   support.expect_true('lsp_signature ignore_error function is defined', type(ignore_error_fn) == 'function')
-  
-  if type(ignore_error_fn) == 'function' and response_err and response_err.code == -32603 then
-    local ctx = { client_id = vim.lsp.get_clients({ bufnr = 0 })[1].id }
-    local should_ignore = ignore_error_fn(response_err, ctx, {})
-    print("Should ignore error according to ignore_error callback: " .. tostring(should_ignore))
-    support.expect_true('ignore_error callback returns true for JDTLS ClassCastException', should_ignore == true)
-  end
 end
 
 vim.cmd('bdelete!')
