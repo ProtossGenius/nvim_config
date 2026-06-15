@@ -15,6 +15,7 @@ Run commands from the repository root.
 - Run the Java integration spec: `NVIM_TEST_JAVA_PROJECT="$PWD/test-projects/java17-spring-demo/core" nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_file_actions_integration.lua')" +qa!`
 - Run the Java dependency navigation spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_navigation_spec.lua')" +qa!`
 - Run the Java autostart/progress spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_autostart_spec.lua')" +qa!`
+- Run the Java hover/type-definition spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_hover_type_definition_spec.lua')" +qa!`
 - Run the Java completion spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_completion_spec.lua')" +qa!`
 - Run the Java diagnostics spec: `nvim --headless -u "$PWD/init.lua" +"lua dofile('$PWD/test/java_diagnostics_spec.lua')" +qa!`
 - Package the config into an installer: `./package_nvim.sh` (writes `target/install.sh`)
