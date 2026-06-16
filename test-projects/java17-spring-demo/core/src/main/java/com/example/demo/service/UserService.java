@@ -7,6 +7,9 @@ import com.example.demo.model.User;
 
 public interface UserService {
 
+  /**
+   * Lists all persisted users.
+   */
   List<User> listUsers();
 
   User getUser(Long id);

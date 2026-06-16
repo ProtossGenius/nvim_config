@@ -48,6 +48,7 @@ err, result = request('textDocument/hover', 'userService.listUsers', #'userServi
 support.expect_true('java hover succeeds', err == nil)
 local hover_value = result and result.contents and result.contents.value or ''
 support.expect_true('java hover shows listUsers signature', hover_value:find('List<User> listUsers(', 1, true) ~= nil)
+support.expect_true('java hover shows listUsers documentation', hover_value:find('Lists all persisted users.', 1, true) ~= nil)
 
 vim.cmd('bdelete!')
 support.flush()
