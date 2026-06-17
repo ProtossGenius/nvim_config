@@ -39,12 +39,12 @@ local function request(method, needle, offset)
   return { message = 'needle not found: ' .. needle }, nil
 end
 
-local err, result = request('textDocument/typeDefinition', 'userService.listUsers', #'userService.listUsers')
+local err, result = request('textDocument/typeDefinition', 'userService.listUsers', #'userService.')
 support.expect_true('java typeDefinition succeeds', err == nil)
 local type_uri = result and result[1] and result[1].uri or ''
 support.expect_true('java typeDefinition opens List source', type_uri:find('List%.java', 1) ~= nil)
 
-err, result = request('textDocument/hover', 'userService.listUsers', #'userService.listUsers')
+err, result = request('textDocument/hover', 'userService.listUsers', #'userService.')
 support.expect_true('java hover succeeds', err == nil)
 local hover_value = result and result.contents and result.contents.value or ''
 support.expect_true('java hover shows listUsers signature', hover_value:find('List<User> listUsers(', 1, true) ~= nil)
