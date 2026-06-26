@@ -36,9 +36,11 @@ function M.setup()
     element_mappings = {
       stacks = {
         open = { "<CR>", "o" },
+        expand = { "<Shift-CR>", "<2-LeftMouse>" }
       },
       breakpoints = {
         open = { "<CR>", "o" },
+        expand = { "<Shift-CR>", "<2-LeftMouse>" }
       }
     }
   })

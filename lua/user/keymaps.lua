@@ -556,12 +556,3 @@ vim.api.nvim_create_autocmd("TermOpen", {
     vim.keymap.set('n', '<CR>', 'i<Up><CR>', { buffer = bufnr, noremap = true, silent = true, desc = 'Repeat last terminal command' })
   end
 })
-
--- DAP UI: Jump to location under cursor on Enter (<CR>)
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = { "dapui_stacks", "dapui_breakpoints" },
-  callback = function()
-    local bufnr = vim.api.nvim_get_current_buf()
-    vim.keymap.set('n', '<CR>', 'o', { buffer = bufnr, remap = true, silent = true, desc = 'DAP UI: Jump to location on Enter' })
-  end
-})
