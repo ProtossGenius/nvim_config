@@ -194,11 +194,10 @@ function M.setup()
     desc = 'Toggle a DAP breakpoint on the current line',
   })
 
-  -- Enable omnifunc autocompletion in DAP REPL window
+  -- Enable omnifunc autocompletion in DAP REPL and watches windows
   vim.api.nvim_create_autocmd('FileType', {
-    pattern = 'dap-repl',
+    pattern = { 'dap-repl', 'dapui_watches' },
     callback = function()
-      vim.bo.omnifunc = 'v:lua.require("dap.repl").omnifunc'
       local cmp_ok, cmp = pcall(require, 'cmp')
       if cmp_ok then
         cmp.setup.buffer({
