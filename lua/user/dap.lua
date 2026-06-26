@@ -194,15 +194,63 @@ function M.setup()
     desc = 'Toggle a DAP breakpoint on the current line',
   })
 
+  local dap_source_registered = false
   -- Enable omnifunc autocompletion in DAP REPL and watches windows
   vim.api.nvim_create_autocmd('FileType', {
     pattern = { 'dap-repl', 'dapui_watches' },
     callback = function()
+      vim.bo.omnifunc = 'v:lua.require("dap.repl").omnifunc'
       local cmp_ok, cmp = pcall(require, 'cmp')
       if cmp_ok then
+        if not dap_source_registered then
+          local dap_source = {}
+          function dap_source:is_available()
+            return require('dap').session() ~= nil
+          end
+          function dap_source:get_keyword_pattern()
+            return [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]]
+          end
+          function dap_source:complete(params, callback)
+            local session = require('dap').session()
+            if not session then
+              callback()
+              return
+            end
+            local col = params.context.cursor.col
+            local line = params.context.cursor_line
+            local offset = 0
+            if vim.startswith(line, "> ") then
+              offset = 2
+            elseif vim.startswith(line, "dap> ") then
+              offset = 5
+            end
+            local line_to_cursor = line:sub(offset + 1, col)
+            session:request('completions', {
+              frameId = (session.current_frame or {}).id,
+              text = line_to_cursor,
+              column = col + 1 - offset
+            }, function(err, response)
+              if err or not response or not response.targets then
+                callback()
+                return
+              end
+              local items = {}
+              for _, target in ipairs(response.targets) do
+                table.insert(items, {
+                  label = target.label,
+                  insertText = target.text,
+                })
+              end
+              callback({ items = items, isIncomplete = false })
+            end)
+          end
+          cmp.register_source('dap', dap_source)
+          dap_source_registered = true
+        end
+
         cmp.setup.buffer({
           sources = cmp.config.sources({
-            { name = 'omni' },
+            { name = 'dap' },
           }, {
             { name = 'buffer' },
           }),
