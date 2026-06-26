@@ -259,7 +259,12 @@ function M.on_attach(client, bufnr)
 
   buf_map(bufnr, 'n', '<C-]>', vim.lsp.buf.definition, 'Go to Definition')
   buf_map(bufnr, 'n', 'gd', vim.lsp.buf.definition, 'Go to Definition')
-  buf_map(bufnr, 'n', 'gr', vim.lsp.buf.references, 'Go to References')
+  buf_map(bufnr, 'n', 'gr', function()
+    require('telescope.builtin').lsp_references({
+      include_declaration = true,
+      show_line = true,
+    })
+  end, 'Go to References (with preview)')
   buf_map(bufnr, 'n', 'gD', vim.lsp.buf.declaration, 'Go to Declaration')
   buf_map(bufnr, 'n', 'K', vim.lsp.buf.hover, 'Hover')
   buf_map(bufnr, 'n', 'ff', vim.lsp.buf.code_action, 'Code Action')
@@ -267,7 +272,12 @@ function M.on_attach(client, bufnr)
 
   buf_map(bufnr, 'n', '<leader>ld', vim.lsp.buf.definition, 'LSP: Go to definition')
   buf_map(bufnr, 'n', '<leader>lD', vim.lsp.buf.declaration, 'LSP: Go to declaration')
-  buf_map(bufnr, 'n', '<leader>lr', vim.lsp.buf.references, 'LSP: Go to references')
+  buf_map(bufnr, 'n', '<leader>lr', function()
+    require('telescope.builtin').lsp_references({
+      include_declaration = true,
+      show_line = true,
+    })
+  end, 'LSP: Go to references (with preview)')
   buf_map(bufnr, 'n', '<leader>li', vim.lsp.buf.implementation, 'LSP: Go to implementation')
   buf_map(bufnr, 'n', '<leader>lc', jump_to_class, 'LSP: Jump to class')
   buf_map(bufnr, 'n', '<leader>lt', vim.lsp.buf.type_definition, 'LSP: Go to type definition')
