@@ -343,6 +343,19 @@ end
 
 -- DAP Repeat last action with Enter (<CR>)
 keymap('n', '<CR>', function()
+  local buftype = vim.bo.buftype
+  local filetype = vim.bo.filetype
+
+  -- Only repeat last step if we are in a normal file/buffer
+  if buftype ~= '' then
+    return '<CR>'
+  end
+
+  -- Skip if we are in any DAP UI or float windows
+  if filetype:match('^dap') then
+    return '<CR>'
+  end
+
   local dap_ok, dap = pcall(require, 'dap')
   if dap_ok and dap.session() and _G.last_dap_action then
     _G.last_dap_action()
@@ -488,5 +501,14 @@ vim.api.nvim_create_autocmd("TermOpen", {
   callback = function()
     local bufnr = vim.api.nvim_get_current_buf()
     vim.keymap.set('n', '<CR>', 'i<Up><CR>', { buffer = bufnr, noremap = true, silent = true, desc = 'Repeat last terminal command' })
+  end
+})
+
+-- DAP UI: Jump to location under cursor on Enter (<CR>)
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "dapui_stacks", "dapui_breakpoints" },
+  callback = function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    vim.keymap.set('n', '<CR>', 'o', { buffer = bufnr, remap = true, silent = true, desc = 'DAP UI: Jump to location on Enter' })
   end
 })

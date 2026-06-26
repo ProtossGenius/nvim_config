@@ -32,7 +32,16 @@ function M.setup()
   local dapui = require('dapui')
 
   -- 1. Initialize DAP UI
-  dapui.setup()
+  dapui.setup({
+    element_mappings = {
+      stacks = {
+        open = { "<CR>", "o" },
+      },
+      breakpoints = {
+        open = { "<CR>", "o" },
+      }
+    }
+  })
 
   -- 2. Configure auto-open/close listeners for DAP UI
   dap.listeners.after.event_initialized["dapui_config"] = function()
