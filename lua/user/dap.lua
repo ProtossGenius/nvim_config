@@ -31,7 +31,7 @@ function M.setup()
   local dap = require('dap')
   local dapui = require('dapui')
 
-  -- 1. Initialize DAP UI
+  -- 1. Initialize DAP UI with Enter to jump/open for stacks and breakpoints
   dapui.setup({
     element_mappings = {
       stacks = {
@@ -190,6 +190,24 @@ function M.setup()
     require('dap').toggle_breakpoint()
   end, {
     desc = 'Toggle a DAP breakpoint on the current line',
+  })
+
+  -- Enable omnifunc autocompletion in DAP REPL window
+  vim.api.nvim_create_autocmd('FileType', {
+    pattern = 'dap-repl',
+    callback = function()
+      vim.bo.omnifunc = 'v:lua.require("dap.repl").omnifunc'
+      local cmp_ok, cmp = pcall(require, 'cmp')
+      if cmp_ok then
+        cmp.setup.buffer({
+          sources = cmp.config.sources({
+            { name = 'omni' },
+          }, {
+            { name = 'buffer' },
+          }),
+        })
+      end
+    end,
   })
 end
 

@@ -311,6 +311,7 @@ return {
       { 'hrsh7th/cmp-nvim-lsp' },
       { 'hrsh7th/cmp-buffer' },
       { 'hrsh7th/cmp-path' },
+      { 'hrsh7th/cmp-omni' },
       { 'saadparwaiz1/cmp_luasnip' },
       { 'hrsh7th/cmp-nvim-lua' },
 
@@ -404,13 +405,27 @@ return {
       local cmp = require('cmp')
       local cmp_select = { behavior = cmp.SelectBehavior.Select }
       cmp.setup({
+        enabled = function()
+          local buftype = vim.api.nvim_get_option_value('buftype', { buf = 0 })
+          if buftype == 'prompt' then
+            return vim.bo.filetype == 'dap-repl'
+          end
+          return not (vim.fn.reg_recording() ~= '' or vim.fn.reg_executing() ~= '')
+        end,
         sources = cmp.config.sources({
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
         }, {
-            { name = 'buffer' },
-            { name = 'path' },
-          }),
+          {
+            name = 'buffer',
+            option = {
+              get_bufnrs = function()
+                return vim.api.nvim_list_bufs()
+              end
+            }
+          },
+          { name = 'path' },
+        }),
         snippet = {
           expand = function(args)
             require('luasnip').lsp_expand(args.body)

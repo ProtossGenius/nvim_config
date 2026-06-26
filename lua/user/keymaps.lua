@@ -367,10 +367,63 @@ end, { expr = true, noremap = true, silent = true, desc = 'DAP: Repeat last debu
 
 dap_map('n', '<leader>db', function() require('dap').toggle_breakpoint() end, 'Debug: Toggle breakpoint')
 dap_map('n', '<leader>dB', function()
-  local cond = vim.fn.input('Breakpoint condition: ')
-  if cond and cond ~= '' then
-    require('dap').set_breakpoint(cond)
+  local source_buf = vim.api.nvim_get_current_buf()
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].buftype = 'nofile'
+  vim.bo[buf].bufhidden = 'wipe'
+
+  local source_ft = vim.bo[source_buf].filetype
+  vim.bo[buf].filetype = source_ft ~= '' and source_ft or 'lua'
+
+  -- Name the buffer properly so LSPs (like jdtls) resolve the file context/project package
+  local source_name = vim.api.nvim_buf_get_name(source_buf)
+  if source_name ~= '' then
+    local ext = vim.fn.fnamemodify(source_name, ':e')
+    local base = vim.fn.fnamemodify(source_name, ':r')
+    local temp_name = base .. '_dap_cond.' .. (ext ~= '' and ext or 'java')
+    pcall(vim.api.nvim_buf_set_name, buf, temp_name)
   end
+
+  -- Attach LSP clients of source buffer to the new buffer for autocompletion
+  local clients = vim.lsp.get_clients({ bufnr = source_buf })
+  for _, client in ipairs(clients) do
+    pcall(vim.lsp.buf_attach_client, buf, client.id)
+  end
+
+  local width = 60
+  local height = 1
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = 'minimal',
+    border = 'rounded',
+    title = ' Breakpoint Condition ',
+    title_pos = 'center',
+  })
+
+  vim.cmd('startinsert')
+
+  -- Set buffer-local keymaps for confirmation and cancellation
+  vim.keymap.set('i', '<CR>', function()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local cond = vim.trim(table.concat(lines, '\n'))
+    vim.api.nvim_win_close(win, true)
+    vim.cmd('stopinsert')
+    if cond ~= '' then
+      require('dap').set_breakpoint(cond)
+    end
+  end, { buffer = buf, noremap = true, silent = true })
+
+  vim.keymap.set({ 'i', 'n' }, '<Esc>', function()
+    vim.api.nvim_win_close(win, true)
+    vim.cmd('stopinsert')
+  end, { buffer = buf, noremap = true, silent = true })
 end, 'Debug: Set conditional breakpoint')
 dap_map('n', '<leader>dc', function() require('dap').continue() end, 'Debug: Continue / Start')
 dap_map('n', '<leader>dn', function() require('dap').step_over() end, 'Debug: Step over / Next')
