@@ -61,14 +61,10 @@ support.expect_true('java autostart detects api project independently', api_star
 -- Check that JDTLS start command is scheduled/run for both modules
 vim.wait(300)
 
-local lsp_start_count = 0
-for _, cmd in ipairs(commands) do
-  if cmd == 'silent! LspStart jdtls' then
-    lsp_start_count = lsp_start_count + 1
-  end
-end
-
-support.expect_true('LspStart jdtls is triggered for both submodules', lsp_start_count >= 2)
+local core_buf_num = vim.fn.bufnr(core_file)
+local api_buf_num = vim.fn.bufnr(api_file)
+support.expect_equal('core filetype is set to java', vim.bo[core_buf_num].filetype, 'java')
+support.expect_equal('api filetype is set to java', vim.bo[api_buf_num].filetype, 'java')
 
 -- Test project_root prioritization of _G.initial_cwd
 local original_initial_cwd = _G.initial_cwd

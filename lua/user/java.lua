@@ -512,10 +512,6 @@ function M.ensure_project_jdtls(root, opts)
       vim.bo[bufnr].filetype = 'java'
     end
 
-    vim.api.nvim_buf_call(bufnr, function()
-      vim.cmd('silent! LspStart jdtls')
-    end)
-
     vim.defer_fn(function()
       project_state.starting = false
     end, 200)

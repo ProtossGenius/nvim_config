@@ -22,7 +22,8 @@ end
 support.expect_true('java autostart ignores non-java project', not user_java.ensure_project_jdtls(vim.fn.tempname()))
 support.expect_true('java autostart detects java project', user_java.ensure_project_jdtls(root))
 vim.wait(300)
-support.expect_true('java autostart issues LspStart jdtls', vim.tbl_contains(commands, 'silent! LspStart jdtls'))
+local app_buf = vim.fn.bufnr(java_dir .. '/App.java')
+support.expect_equal('java autostart sets filetype to java', vim.bo[app_buf].filetype, 'java')
 
 vim.cmd = original_cmd
 vim.fn.delete(root, 'rf')
