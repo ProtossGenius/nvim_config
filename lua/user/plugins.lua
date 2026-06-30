@@ -595,8 +595,8 @@ return {
     config = function()
       local lint = require('lint')
       lint.linters_by_ft = {
-        c = { 'cppcheck' },
-        cpp = { 'cppcheck' },
+        c = vim.fn.executable('cppcheck') == 1 and { 'cppcheck' } or {},
+        cpp = vim.fn.executable('cppcheck') == 1 and { 'cppcheck' } or {},
       }
 
       -- Trigger linting on save and on entering buffer

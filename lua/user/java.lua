@@ -247,6 +247,52 @@ local function get_state()
   return state
 end
 
+local function find_topmost_java_root(start_dir, boundary)
+  local current = vim.fs.normalize(start_dir)
+  boundary = vim.fs.normalize(boundary)
+
+  if current:sub(1, #boundary) ~= boundary then
+    boundary = current
+  end
+
+  local java_markers = {
+    'pom.xml',
+    'mvnw',
+    'build.gradle',
+    'build.gradle.kts',
+    'settings.gradle',
+    'settings.gradle.kts',
+    'gradlew',
+  }
+
+  local topmost = nil
+  while true do
+    local is_root = false
+    for _, marker in ipairs(java_markers) do
+      if is_file(vim.fs.joinpath(current, marker)) then
+        is_root = true
+        break
+      end
+    end
+
+    if is_root then
+      topmost = current
+    end
+
+    if current == boundary or current == '/' or current == '.' or current == '' then
+      break
+    end
+
+    local parent = vim.fs.dirname(current)
+    if parent == current then
+      break
+    end
+    current = parent
+  end
+
+  return topmost
+end
+
 local function project_root(path_or_bufnr)
   local path
   if type(path_or_bufnr) == 'string' then
@@ -295,12 +341,23 @@ local function project_root(path_or_bufnr)
     end
   end
 
+  local start_dir = path
+  if is_file(path) then
+    start_dir = vim.fs.dirname(path)
+  end
+
+  local boundary = project.root(path_or_bufnr)
+  local topmost = find_topmost_java_root(start_dir, boundary)
+  if topmost then
+    return topmost
+  end
+
   local java_root = vim.fs.root(path, java_markers)
   if java_root then
     return java_root
   end
 
-  return project.root(path_or_bufnr)
+  return boundary
 end
 
 function M.patch_jdtls_workspace_path()
@@ -460,8 +517,9 @@ end
 
 function M.ensure_project_jdtls(root, opts)
   opts = opts or {}
-  root = vim.fs.normalize(root or vim.fn.getcwd())
-  if not is_java_project_root(root) then
+  root = root or vim.fn.getcwd()
+  root = project_root(root)
+  if not root or not is_java_project_root(root) then
     return false
   end
   if jdtls_client_for_root(root) then

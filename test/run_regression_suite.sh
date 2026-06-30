@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JAVA_PROJECT="${NVIM_TEST_JAVA_PROJECT:-$HOME/workspace/test-java}"
 
+if [ ! -d "$JAVA_PROJECT" ]; then
+  echo "Setting up temporary test-java project..."
+  mkdir -p "$JAVA_PROJECT"
+  cp -r "$ROOT/test-projects/java17-spring-demo/core/"* "$JAVA_PROJECT/"
+fi
+
 run_spec() {
   local spec="$1"
   echo "==> $spec"
@@ -27,6 +33,8 @@ run_spec "test/dap_cpp_spec.lua"
 run_spec "test/cpp_keymap_scope_spec.lua"
 run_spec "test/java_autostart_spec.lua"
 run_spec "test/java_double_layer_autostart_spec.lua"
+run_spec "test/java_single_instance_spec.lua"
+run_spec "test/java_runtime_detection_spec.lua"
 run_spec "test/java_signature_help_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 run_spec "test/scratchpad_spec.lua"

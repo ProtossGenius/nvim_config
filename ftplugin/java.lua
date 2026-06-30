@@ -128,6 +128,8 @@ if not runtimes then
     "/opt/homebrew/Cellar/openjdk*/*/libexec/openjdk.jdk/Contents/Home",
     "/opt/homebrew/opt/openjdk*/libexec/openjdk.jdk/Contents/Home",
     "/usr/lib/jvm/*",
+    home .. "/.jdks/*/Contents/Home",
+    home .. "/.jdks/*",
     home .. "/.local/share/nvim/nvim-java/packages/openjdk/*/jdk-*/Contents/Home",
     home .. "/.local/share/nvim/nvim-java/packages/openjdk/*/jdk-*"
   }
