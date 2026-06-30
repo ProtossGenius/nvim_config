@@ -97,7 +97,6 @@ copy_data_dir() {
 
 copy_data_dir "lazy"
 copy_data_dir "mason"
-copy_data_dir "nvim-java"
 copy_data_dir "site"
 
 if [ -d "$HOME/.jdks" ]; then
@@ -108,6 +107,12 @@ fi
 # Clean up unnecessary packaging bloat from config and data bundles to keep installer size small
 find "$config_root" -type f -name ".DS_Store" -delete
 find "$config_root" -type d -name "__pycache__" -exec rm -rf {} +
+
+# Remove JDK compile/link-time bloat from the bundled copy (saves ~127MB raw)
+if [ -d "$bundle_root/jdks" ]; then
+  find "$bundle_root/jdks" -type d -name "jmods" -exec rm -rf {} +
+  find "$bundle_root/jdks" -type f -name "src.zip" -delete
+fi
 
 if [ -d "$data_root" ]; then
   # 1. Remove all git metadata directories (takes up a massive amount of space)
