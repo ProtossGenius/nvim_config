@@ -143,6 +143,36 @@ if not runtimes then
     end
   end
 
+  -- Map missing standard execution environments to the highest available JDK path
+  local highest_ver = 0
+  local highest_path = nil
+  for _, r in ipairs(runtimes) do
+    local ver = tonumber(r.name:match("JavaSE%-(%d+)"))
+    if ver and ver > highest_ver then
+      highest_ver = ver
+      highest_path = r.path
+    end
+  end
+
+  if highest_path then
+    local std_envs = { "JavaSE-17", "JavaSE-11", "JavaSE-1.8" }
+    for _, env in ipairs(std_envs) do
+      local found = false
+      for _, r in ipairs(runtimes) do
+        if r.name == env then
+          found = true
+          break
+        end
+      end
+      if not found then
+        table.insert(runtimes, {
+          name = env,
+          path = highest_path,
+        })
+      end
+    end
+  end
+
   _G._user_jvm_runtimes = runtimes
 end
 

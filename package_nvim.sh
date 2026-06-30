@@ -100,6 +100,11 @@ copy_data_dir "mason"
 copy_data_dir "nvim-java"
 copy_data_dir "site"
 
+if [ -d "$HOME/.jdks" ]; then
+  mkdir -p "$bundle_root/jdks"
+  cp -a "$HOME/.jdks"/* "$bundle_root/jdks/"
+fi
+
 # Clean up unnecessary packaging bloat from config and data bundles to keep installer size small
 find "$config_root" -type f -name ".DS_Store" -delete
 find "$config_root" -type d -name "__pycache__" -exec rm -rf {} +
@@ -253,6 +258,12 @@ if [ -d "$tmp_dir/nvim-bundle/data/nvim" ]; then
       cp -a "$source_path" "$data_target/$name"
     fi
   done
+fi
+
+if [ -d "$tmp_dir/nvim-bundle/jdks" ]; then
+  echo "Installing bundled JDKs to $HOME/.jdks..."
+  mkdir -p "$HOME/.jdks"
+  cp -a "$tmp_dir/nvim-bundle/jdks"/. "$HOME/.jdks"/
 fi
 
 echo ""
