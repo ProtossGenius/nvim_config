@@ -193,6 +193,7 @@ local function attach_java_keymaps(bufnr)
   buf_map(bufnr, 'n', '<leader>jtm', '<cmd>JavaTestRunCurrentMethod<CR>', 'Java: Run test method')
   buf_map(bufnr, 'n', '<leader>jtr', '<cmd>JavaTestViewLastReport<CR>', 'Java: View last test report')
   buf_map(bufnr, 'n', '<leader>jj', '<cmd>JavaSettingsChangeRuntime<CR>', 'Java: Change runtime')
+  buf_map(bufnr, 'n', '<leader>ji', M.override_methods, 'Java: Override/Implement methods')
 end
 
 function M.jdtls_settings()
@@ -251,6 +252,35 @@ function M.jdtls_settings()
       },
     },
   }
+end
+
+function M.override_methods()
+  local params = vim.lsp.util.make_range_params()
+  params.context = { diagnostics = vim.lsp.diagnostic.get_line_diagnostics() }
+  vim.lsp.buf_request(0, 'textDocument/codeAction', params, function(err, result, ctx, config)
+    if err or not result then return end
+    for _, action in ipairs(result) do
+      local title = action.title or ""
+      if title:match("Override/Implement Methods") or title:match("override/implement") then
+        local client = vim.lsp.get_client_by_id(ctx.client_id)
+        if client then
+          if action.command then
+            client.request('workspace/executeCommand', action.command, function(exec_err, exec_res)
+              if exec_err then
+                vim.notify("Error executing override: " .. exec_err.message, vim.log.levels.WARN)
+              end
+            end, 0)
+          else
+            if action.edit then
+              vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
+            end
+          end
+        end
+        return
+      end
+    end
+    vim.notify("Override/Implement Methods code action not found at cursor position", vim.log.levels.WARN)
+  end)
 end
 
 function M.on_attach(client, bufnr)

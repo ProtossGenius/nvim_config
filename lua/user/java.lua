@@ -806,6 +806,26 @@ function M.setup()
     local original_pick_many = jdtls_ui.pick_many
     local select_mod = require('user.select')
     jdtls_ui.pick_many = function(items, prompt, label_f, opts)
+      if prompt == "Method to override" then
+        local sorted_items = {}
+        for i, item in ipairs(items) do
+          table.insert(sorted_items, { index = i, value = item })
+        end
+        table.sort(sorted_items, function(a, b)
+          local a_unimp = a.value.unimplemented and 1 or 0
+          local b_unimp = b.value.unimplemented and 1 or 0
+          if a_unimp ~= b_unimp then
+            return a_unimp > b_unimp
+          end
+          return a.index < b.index
+        end)
+        local final_items = {}
+        for _, item in ipairs(sorted_items) do
+          table.insert(final_items, item.value)
+        end
+        items = final_items
+      end
+
       local co = coroutine.running()
       if co then
         select_mod.select_many(items, prompt, label_f, opts, function(selected)

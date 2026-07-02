@@ -259,6 +259,7 @@ local config = {
     vim.keymap.set("v", "<leader>cxv", function() jdtls.extract_variable(true) end, { desc = "Java: Extract Variable", buffer = bufnr })
     vim.keymap.set("n", "<leader>cxc", jdtls.extract_constant, { desc = "Java: Extract Constant", buffer = bufnr })
     vim.keymap.set("v", "<leader>cxc", function() jdtls.extract_constant(true) end, { desc = "Java: Extract Constant", buffer = bufnr })
+    vim.keymap.set("n", "<leader>ci", function() require('user.lsp').override_methods() end, { desc = "Java: Override/Implement Methods", buffer = bufnr })
   end
 }
 
