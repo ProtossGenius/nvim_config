@@ -82,6 +82,78 @@ local function get_visual_range(bufnr)
   }
 end
 
+local function jump_to_current_class_definition()
+  local ok, ts_utils = pcall(require, 'nvim-treesitter.ts_utils')
+  local parser = nil
+  if ok then
+    local success, p = pcall(vim.treesitter.get_parser, 0)
+    if success then
+      parser = p
+    end
+  end
+
+  local target_types = {
+    class_declaration = true,
+    class_definition = true,
+    interface_declaration = true,
+    enum_declaration = true,
+    record_declaration = true,
+    struct_specifier = true,
+    struct_declaration = true,
+    trait_declaration = true,
+    type_declaration = true,
+  }
+
+  local found_node = nil
+  if parser then
+    local tree = parser:parse()[1]
+    if tree then
+      local root = tree:root()
+      local function traverse(node)
+        if found_node then return end
+        local type = node:type()
+        if target_types[type] then
+          for child in node:iter_children() do
+            if child:type() == 'identifier' or child:type() == 'type_identifier' then
+              found_node = child
+              return
+            end
+          end
+          found_node = node
+          return
+        end
+        for child in node:iter_children() do
+          traverse(child)
+          if found_node then return end
+        end
+      end
+      traverse(root)
+    end
+  end
+
+  if found_node then
+    local start_row, start_col, _, _ = found_node:range()
+    vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
+  else
+    -- Fallback to regex search
+    local line_count = vim.api.nvim_buf_line_count(0)
+    for i = 1, line_count do
+      local line = vim.api.nvim_buf_get_lines(0, i - 1, i, false)[1]
+      if line:match("%f[%w]class%s+[%w_]+") or
+         line:match("%f[%w]interface%s+[%w_]+") or
+         line:match("%f[%w]enum%s+[%w_]+") or
+         line:match("%f[%w]record%s+[%w_]+") or
+         line:match("%f[%w]struct%s+[%w_]+") or
+         line:match("%f[%w]trait%s+[%w_]+") or
+         line:match("%f[%w]type%s+[%w_]+") then
+        vim.api.nvim_win_set_cursor(0, { i, 0 })
+        return
+      end
+    end
+    vim.notify("Could not find class definition", vim.log.levels.WARN)
+  end
+end
+
 local function jump_to_class()
   vim.ui.input({ prompt = 'Class: ' }, function(input)
     local query = vim.trim(input or '')
@@ -340,6 +412,7 @@ function M.on_attach(client, bufnr)
   end, 'LSP: Go to references (with preview)')
   buf_map(bufnr, 'n', '<leader>li', vim.lsp.buf.implementation, 'LSP: Go to implementation')
   buf_map(bufnr, 'n', '<leader>lc', jump_to_class, 'LSP: Jump to class')
+  buf_map(bufnr, 'n', '<leader>lC', jump_to_current_class_definition, 'LSP: Jump to current class definition')
   buf_map(bufnr, 'n', '<leader>lt', vim.lsp.buf.type_definition, 'LSP: Go to type definition')
   buf_map(bufnr, 'n', '<leader>lh', vim.lsp.buf.hover, 'LSP: Hover')
   buf_map(bufnr, 'n', '<leader>la', vim.lsp.buf.code_action, 'LSP: Code action')
