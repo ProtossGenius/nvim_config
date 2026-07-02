@@ -36,6 +36,7 @@ end, { desc = 'Switch to English and enter command mode' })
 -- Save buffer
 keymap({ 'i', 'n', 'v' }, '<C-s>', '<cmd>w<cr><esc>', { desc = 'Save file' })
 leader_map('n', '<leader>fs', '<cmd>w<cr>', 'Save file')
+leader_map('n', '<leader>q', '<cmd>q<cr>', 'Close window')
 keymap('n', '<C-_>', toggle_comment_current, { desc = 'Toggle comment' })
 keymap('n', '<C-/>', toggle_comment_current, { desc = 'Toggle comment' })
 keymap('x', '<C-_>', '<Esc><Cmd>lua require("user.comment").toggle_visual()<CR>', { desc = 'Toggle comment selection' })
