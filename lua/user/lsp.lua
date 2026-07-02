@@ -336,12 +336,26 @@ function M.override_methods()
       if title:match("Override/Implement Methods") or title:match("override/implement") then
         local client = vim.lsp.get_client_by_id(ctx.client_id)
         if client then
-          if action.command then
-            client.request('workspace/executeCommand', action.command, function(exec_err, exec_res)
-              if exec_err then
-                vim.notify("Error executing override: " .. exec_err.message, vim.log.levels.WARN)
-              end
-            end, 0)
+          local cmd = action.command or action
+          if type(cmd) == "table" and cmd.command then
+            local cmd_name = cmd.command
+            local local_fn = client.commands and client.commands[cmd_name]
+            if not local_fn and vim.lsp.commands then
+              local_fn = vim.lsp.commands[cmd_name]
+            end
+
+            if local_fn then
+              local bufnr = ctx.bufnr or vim.api.nvim_get_current_buf()
+              local_fn(cmd.arguments, { client_id = ctx.client_id, bufnr = bufnr, params = cmd })
+            elseif client.exec_cmd then
+              client:exec_cmd(cmd, { bufnr = ctx.bufnr or vim.api.nvim_get_current_buf() })
+            else
+              client.request('workspace/executeCommand', cmd, function(exec_err, exec_res)
+                if exec_err then
+                  vim.notify("Error executing override: " .. exec_err.message, vim.log.levels.WARN)
+                end
+              end, 0)
+            end
           else
             if action.edit then
               vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
