@@ -327,30 +327,53 @@ function M.jdtls_settings()
 end
 
 function M.override_methods()
-  local params = vim.lsp.util.make_range_params()
-  params.context = { diagnostics = vim.lsp.diagnostic.get_line_diagnostics() }
+  local bufnr = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local client = vim.lsp.get_clients({ bufnr = bufnr, name = 'jdtls' })[1]
+  local position_encoding = client and client.offset_encoding or 'utf-16'
+  local params = vim.lsp.util.make_range_params(0, position_encoding)
+  params.context = {
+    diagnostics = vim.diagnostic.get(bufnr, { lnum = cursor[1] - 1 }),
+  }
   vim.lsp.buf_request(0, 'textDocument/codeAction', params, function(err, result, ctx, config)
-    if err or not result then return end
+    if err then
+      vim.notify('Failed to fetch override actions: ' .. err.message, vim.log.levels.WARN)
+      return
+    end
+
+    if not result then
+      return
+    end
+
     for _, action in ipairs(result) do
       local title = action.title or ""
       if title:match("Override/Implement Methods") or title:match("override/implement") then
-        local client = vim.lsp.get_client_by_id(ctx.client_id)
-        if client then
+        local action_client = vim.lsp.get_client_by_id(ctx.client_id)
+        if action_client then
           local cmd = action.command or action
           if type(cmd) == "table" and cmd.command then
             local cmd_name = cmd.command
-            local local_fn = client.commands and client.commands[cmd_name]
+            local local_fn = action_client.commands and action_client.commands[cmd_name]
             if not local_fn and vim.lsp.commands then
               local_fn = vim.lsp.commands[cmd_name]
             end
 
             if local_fn then
-              local bufnr = ctx.bufnr or vim.api.nvim_get_current_buf()
-              local_fn(cmd.arguments, { client_id = ctx.client_id, bufnr = bufnr, params = cmd })
-            elseif client.exec_cmd then
-              client:exec_cmd(cmd, { bufnr = ctx.bufnr or vim.api.nvim_get_current_buf() })
+              local command_params = params
+              if type(cmd.arguments) == 'table' and type(cmd.arguments[1]) == 'table' then
+                command_params = cmd.arguments[1]
+              end
+              local_fn(cmd.arguments, {
+                client_id = ctx.client_id,
+                bufnr = ctx.bufnr or bufnr,
+                method = ctx.method,
+                params = command_params,
+                version = ctx.version,
+              })
+            elseif action_client.exec_cmd then
+              action_client:exec_cmd(cmd, { bufnr = ctx.bufnr or bufnr })
             else
-              client.request('workspace/executeCommand', cmd, function(exec_err, exec_res)
+              action_client.request('workspace/executeCommand', cmd, function(exec_err, exec_res)
                 if exec_err then
                   vim.notify("Error executing override: " .. exec_err.message, vim.log.levels.WARN)
                 end
@@ -358,7 +381,7 @@ function M.override_methods()
             end
           else
             if action.edit then
-              vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
+              vim.lsp.util.apply_workspace_edit(action.edit, action_client.offset_encoding or position_encoding)
             end
           end
         end
@@ -453,65 +476,6 @@ function M.on_attach(client, bufnr)
 
   if ok_user_java then
     user_java.attach_mapper_keymaps(bufnr)
-  end
-end
-
--- Custom publishDiagnostics handler for JDTLS to preserve compiler/build errors
-local original_publish_diagnostics = vim.lsp.handlers["textDocument/publishDiagnostics"]
-local cached_java_diagnostics = {}
-
-vim.lsp.handlers["textDocument/publishDiagnostics"] = function(err, result, ctx, config)
-  local client = vim.lsp.get_client_by_id(ctx.client_id)
-  if client and client.name == "jdtls" and result and result.uri then
-    local uri = result.uri
-    local bufnr = vim.uri_to_bufnr(uri)
-    local lines = nil
-    if vim.api.nvim_buf_is_loaded(bufnr) then
-      lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    end
-    
-    local incoming = result.diagnostics or {}
-    local merged = {}
-    
-    -- Cache line content for incoming errors
-    for _, d in ipairs(incoming) do
-      if d.severity == 1 and lines then
-        local lnum = d.range.start.line + 1
-        d._line_content = lines[lnum]
-      end
-      table.insert(merged, d)
-    end
-    
-    -- Re-add previous errors if their lines have not been modified
-    local previous = cached_java_diagnostics[uri] or {}
-    for _, d in ipairs(previous) do
-      if d.severity == 1 and d._line_content then
-        local still_in_incoming = false
-        for _, inc in ipairs(incoming) do
-          if inc.message == d.message and inc.range.start.line == d.range.start.line then
-            still_in_incoming = true
-            break
-          end
-        end
-        
-        if not still_in_incoming and lines then
-          local lnum = d.range.start.line + 1
-          local current_line = lines[lnum]
-          if current_line == d._line_content then
-            table.insert(merged, d)
-          end
-        end
-      end
-    end
-    
-    cached_java_diagnostics[uri] = merged
-    result.diagnostics = merged
-  end
-  
-  if original_publish_diagnostics then
-    original_publish_diagnostics(err, result, ctx, config)
-  else
-    vim.lsp.diagnostic.on_publish_diagnostics(err, result, ctx, config)
   end
 end
 

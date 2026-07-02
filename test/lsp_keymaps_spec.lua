@@ -33,6 +33,19 @@ user_lsp.on_attach(fake_client, 0)
 support.expect_equal('lsp normal format mapping desc', vim.fn.maparg('<leader>lf', 'n', false, true).desc, 'LSP: Format buffer')
 support.expect_equal('lsp visual format mapping desc', vim.fn.maparg('<leader>lf', 'x', false, true).desc, 'LSP: Format selection')
 support.expect_equal('lsp class jump mapping desc', vim.fn.maparg('<leader>lc', 'n', false, true).desc, 'LSP: Jump to class')
+support.expect_equal('leader j prefix has no direct mapping', vim.fn.maparg('<leader>j', 'n', false, true), {})
+support.expect_equal('leader l prefix has no direct mapping', vim.fn.maparg('<leader>l', 'n', false, true), {})
+
+local fake_jdtls_client = {
+  name = 'jdtls',
+  server_capabilities = {},
+  supports_method = function()
+    return false
+  end,
+}
+
+user_lsp.on_attach(fake_jdtls_client, 0)
+support.expect_equal('java override mapping desc', vim.fn.maparg('<leader>ji', 'n', false, true).desc, 'Java: Override/Implement methods')
 
 vim.fn.setpos("'<", { 0, 1, 1, 0 })
 vim.fn.setpos("'>", { 0, 2, 7, 0 })
