@@ -275,7 +275,37 @@ function M.on_attach(client, bufnr)
   buf_map(bufnr, 'n', '<leader>lr', function()
     require('telescope.builtin').lsp_references({
       include_declaration = true,
-      show_line = true,
+      show_line = false,
+      previewer = (function()
+        local p = require('telescope.config').values.qflist_previewer({
+          include_declaration = true,
+          show_line = false,
+        })
+        local original_preview = p.preview
+        p.preview = function(self, entry, status)
+          original_preview(self, entry, status)
+          if entry and entry.lnum and entry.col then
+            local p_bufnr = self.state.bufnr
+            if p_bufnr and vim.api.nvim_buf_is_valid(p_bufnr) then
+              vim.schedule(function()
+                if not vim.api.nvim_buf_is_valid(p_bufnr) then return end
+                local lines = vim.api.nvim_buf_get_lines(p_bufnr, entry.lnum - 1, entry.lnum, false)
+                local line = lines[1]
+                if line then
+                  local col = entry.col
+                  local sub = line:sub(col)
+                  local word = sub:match("^[%w_]+")
+                  local word_len = word and #word or 1
+                  local ns = vim.api.nvim_create_namespace("telescope_lsp_ref_highlight")
+                  vim.api.nvim_buf_clear_namespace(p_bufnr, ns, 0, -1)
+                  vim.api.nvim_buf_add_highlight(p_bufnr, ns, "TelescopePreviewMatch", entry.lnum - 1, col - 1, col - 1 + word_len)
+                end
+              end)
+            end
+          end
+        end
+        return p
+      end)(),
     })
   end, 'LSP: Go to references (with preview)')
   buf_map(bufnr, 'n', '<leader>li', vim.lsp.buf.implementation, 'LSP: Go to implementation')
