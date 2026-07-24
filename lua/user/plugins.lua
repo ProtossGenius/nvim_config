@@ -182,6 +182,11 @@ return {
         detection_methods = { 'pattern' },
         patterns = project.root_markers,
         silent_chdir = false,
+        -- Disable automatic directory switching to support multi-module projects.
+        -- Without this, opening a file in a submodule (e.g. core/) that has its own
+        -- pom.xml causes cwd to change, making files in sibling modules (e.g. api/)
+        -- unsearchable.
+        manual_mode = true,
       })
       telescope.load_extension('projects')
 
