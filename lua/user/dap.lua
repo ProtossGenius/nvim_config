@@ -257,11 +257,12 @@ function M.setup()
                   filterText = label,
                   kind = kind_map[target.type] or cmp.lsp.CompletionItemKind.Property,
                 }
-                if target.start ~= nil and target.length ~= nil then
+                if target.start ~= nil then
+                  local length = target.length or 0
                   item.textEdit = {
                     range = {
                       start = { line = params.context.cursor.row - 1, character = offset + target.start - 1 },
-                      ["end"] = { line = params.context.cursor.row - 1, character = offset + target.start - 1 + target.length },
+                      ["end"] = { line = params.context.cursor.row - 1, character = offset + target.start - 1 + length },
                     },
                     newText = insert_text,
                   }

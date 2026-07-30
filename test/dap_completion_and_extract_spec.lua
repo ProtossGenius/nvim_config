@@ -65,7 +65,7 @@ support.expect_true('trigger characters includes dot', vim.tbl_contains(triggers
 local completed_items = nil
 dap_source:complete({
   context = {
-    cursor = { col = 5, line = 0 },
+    cursor = { col = 5, line = 0, row = 1 },
     cursor_line = "user.",
   }
 }, function(result)
@@ -77,6 +77,35 @@ support.expect_equal('first completion item label', completed_items[1].label, 'g
 support.expect_equal('first completion item kind is Method', completed_items[1].kind, cmp.lsp.CompletionItemKind.Method)
 support.expect_equal('second completion item label', completed_items[2].label, 'id')
 support.expect_equal('second completion item kind is Field', completed_items[2].kind, cmp.lsp.CompletionItemKind.Field)
+
+mock_session.request = function(self, command, args, cb)
+  if command == "completions" then
+    cb(nil, {
+      targets = {
+        { label = "field", text = "field", type = "field", start = 6 },
+      }
+    })
+  else
+    cb(nil, {})
+  end
+end
+
+local replacement_items = nil
+dap_source:complete({
+  context = {
+    cursor = { col = 7, line = 1, row = 2 },
+    cursor_line = "> user.",
+  }
+}, function(result)
+  replacement_items = result.items
+end)
+
+support.expect_true('dap completion start-only target returned item', replacement_items ~= nil and #replacement_items == 1)
+support.expect_true('dap completion start-only target adds textEdit', replacement_items[1].textEdit ~= nil)
+support.expect_equal('dap completion textEdit start line', replacement_items[1].textEdit.range.start.line, 1)
+support.expect_equal('dap completion textEdit start character', replacement_items[1].textEdit.range.start.character, 7)
+support.expect_equal('dap completion textEdit end character defaults to zero-length', replacement_items[1].textEdit.range["end"].character, 7)
+support.expect_equal('dap completion textEdit new text', replacement_items[1].textEdit.newText, 'field')
 
 -- 2. Test Extract Method on 1st Attempt (Visual Mode Marks)
 support.reset({

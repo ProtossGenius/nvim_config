@@ -5,6 +5,7 @@ local scratchpad = require('user.scratchpad')
 local temp_dir = vim.fn.tempname()
 vim.fn.mkdir(temp_dir, 'p')
 temp_dir = vim.uv.fs_realpath(temp_dir) or vim.fs.normalize(temp_dir)
+vim.fn.writefile({ '' }, temp_dir .. '/.root')
 
 local mock_java_file = temp_dir .. '/Main.java'
 vim.fn.writefile({
@@ -43,6 +44,71 @@ local updated_content = table.concat(vim.api.nvim_buf_get_lines(current_buf, 0, 
 support.expect_true('Scratchpad contains result block', updated_content:find('/%*+ result %*+') ~= nil)
 support.expect_true('Scratchpad contains actual output', updated_content:find('Hello from Scratchpad!') ~= nil)
 support.expect_true('Scratchpad contains output end', updated_content:find('%*+ output end %*+/') ~= nil)
+
+-- 3. Test Java classpath resolution prefers the matching jdtls project client
+local original_system = vim.fn.system
+local original_get_clients = vim.lsp.get_clients
+local recorded_cmd = nil
+local requested_scopes = {}
+local parent_dir = vim.fs.dirname(temp_dir)
+
+vim.fn.system = function(cmd)
+  recorded_cmd = cmd
+  return 'mock output'
+end
+
+vim.lsp.get_clients = function(opts)
+  if opts and opts.name == 'jdtls' then
+    return {
+      {
+        name = 'jdtls',
+        config = { root_dir = parent_dir },
+        request = function(self, method, params, cb, req_bufnr)
+          if params.command == 'java.project.isTestFile' then
+            cb(nil, false)
+            return
+          end
+          if params.command == 'java.project.getClasspaths' then
+            cb(nil, { classpaths = { '/cp/wrong-parent' } })
+            return
+          end
+          cb('unexpected command', nil)
+        end,
+      },
+      {
+        name = 'jdtls',
+        config = { root_dir = temp_dir },
+        request = function(self, method, params, cb, req_bufnr)
+          if params.command == 'java.project.isTestFile' then
+            cb(nil, false)
+            return
+          end
+          if params.command == 'java.project.getClasspaths' then
+            local opts_json = vim.json.decode(params.arguments[2])
+            table.insert(requested_scopes, opts_json.scope)
+            cb(nil, { classpaths = { '/cp/correct-project', '/cp/dependency' } })
+            return
+          end
+          cb('unexpected command', nil)
+        end,
+      },
+    }
+  end
+
+  return original_get_clients(opts)
+end
+
+run_scratchpad(current_buf, current_name, 'java')
+vim.wait(1000, function()
+  return recorded_cmd ~= nil
+end)
+
+vim.fn.system = original_system
+vim.lsp.get_clients = original_get_clients
+
+support.expect_true('Scratchpad uses classpath from matching jdtls client', recorded_cmd ~= nil and recorded_cmd:find('/cp/correct-project', 1, true) ~= nil)
+support.expect_true('Scratchpad skips parent jdtls client classpath', recorded_cmd ~= nil and recorded_cmd:find('/cp/wrong-parent', 1, true) == nil)
+support.expect_equal('Scratchpad requests runtime classpath for non-test file', requested_scopes[1], 'runtime')
 
 -- Wipe out the buffer to trigger BufWipeout autocmd cleanup
 vim.cmd('bwipeout!')

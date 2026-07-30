@@ -4,9 +4,97 @@ local uv = vim.uv or vim.loop
 local output_buf = nil
 local output_win = nil
 
+local function normalize(path)
+  if not path or path == '' then
+    return nil
+  end
+
+  return vim.fs.normalize(path)
+end
+
 local function is_file(path)
   local stat = path and path ~= '' and uv.fs_stat(path) or nil
   return stat and stat.type == 'file' or false
+end
+
+local function starts_with_path(path, root)
+  return path == root or path:sub(1, #root + 1) == root .. '/'
+end
+
+local function find_jdtls_client(path)
+  local normalized_path = normalize(path)
+  if not normalized_path then
+    return nil
+  end
+
+  local best_client
+  local best_root_len = -1
+  for _, client in ipairs(vim.lsp.get_clients({ name = 'jdtls' })) do
+    local roots = {}
+
+    if client.config and client.config.root_dir then
+      table.insert(roots, client.config.root_dir)
+    end
+
+    for _, folder in ipairs(client.workspace_folders or {}) do
+      if folder.uri then
+        table.insert(roots, vim.uri_to_fname(folder.uri))
+      end
+    end
+
+    for _, root in ipairs(roots) do
+      local normalized_root = normalize(root)
+      if normalized_root and starts_with_path(normalized_path, normalized_root) and #normalized_root > best_root_len then
+        best_client = client
+        best_root_len = #normalized_root
+      end
+    end
+  end
+
+  return best_client
+end
+
+local function get_java_classpath(client, bufnr, file_path, callback)
+  local uri = vim.uri_from_fname(file_path)
+
+  local function finish(classpaths)
+    if type(classpaths) == 'table' and #classpaths > 0 then
+      callback(classpaths)
+      return
+    end
+
+    callback(nil)
+  end
+
+  local function request_classpaths(scope)
+    client:request('workspace/executeCommand', {
+      command = 'java.project.getClasspaths',
+      arguments = { uri, vim.fn.json_encode({ scope = scope }) },
+    }, function(err, resp)
+      vim.schedule(function()
+        if err then
+          finish(nil)
+          return
+        end
+
+        finish(resp and resp.classpaths or nil)
+      end)
+    end, bufnr)
+  end
+
+  client:request('workspace/executeCommand', {
+    command = 'java.project.isTestFile',
+    arguments = { uri },
+  }, function(err, is_test_file)
+    vim.schedule(function()
+      if err then
+        request_classpaths('runtime')
+        return
+      end
+
+      request_classpaths(is_test_file and 'test' or 'runtime')
+    end)
+  end, bufnr)
 end
 
 -- 获取当前 Java 文件的 package 声明
@@ -177,26 +265,24 @@ local function run_scratchpad(bufnr, file_path, filetype)
       do_run('java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path))
     end
 
-    local ok, jdtls_dap = pcall(require, 'jdtls.dap')
-    local clients = vim.lsp.get_clients({ name = 'jdtls' })
-    if ok and jdtls_dap.fetch_main_configs and #clients > 0 then
-      local success = pcall(function()
-        jdtls_dap.fetch_main_configs({verbose = false}, function(configs)
-          vim.schedule(function()
-            if configs and #configs > 0 and configs[1].classPaths then
-              local cp_entries = configs[1].classPaths
-              local cp_arg = ' -cp ' .. vim.fn.shellescape(table.concat(cp_entries, ':') .. ':.')
-              do_run('java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path))
-            else
-              fallback_run()
-            end
-          end)
-        end)
+    local client = find_jdtls_client(file_path)
+    if not client then
+      fallback_run()
+      return
+    end
+
+    local success = pcall(function()
+      get_java_classpath(client, bufnr, file_path, function(cp_entries)
+        if not cp_entries then
+          fallback_run()
+          return
+        end
+
+        local cp_arg = ' -cp ' .. vim.fn.shellescape(table.concat(cp_entries, ':') .. ':.')
+        do_run('java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path))
       end)
-      if not success then
-        fallback_run()
-      end
-    else
+    end)
+    if not success then
       fallback_run()
     end
     return
