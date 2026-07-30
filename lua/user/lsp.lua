@@ -251,20 +251,103 @@ local function format_visual_selection()
   })
 end
 
+local function extract_field_refactoring()
+  -- extractField is a valid jdtls refactoring but nvim-jdtls doesn't expose it.
+  -- Use code_action with a filter to find and apply it.
+  vim.lsp.buf.code_action({
+    apply = true,
+    context = {
+      only = { 'refactor.extract' },
+      diagnostics = {},
+    },
+    filter = function(action)
+      local title = (action.title or ''):lower()
+      return title:find('field') ~= nil
+    end,
+  })
+end
+
+local function run_main_class()
+  local jdtls_dap = require('jdtls.dap')
+  jdtls_dap.setup_dap_main_class_configs({
+    on_ready = function()
+      require('dap').continue()
+    end,
+  })
+end
+
+local function stop_main_class()
+  local dap = require('dap')
+  if dap.session() then
+    dap.terminate()
+  else
+    vim.notify('No active DAP session to stop.', vim.log.levels.INFO)
+  end
+end
+
+local function toggle_dap_repl()
+  local dap = require('dap')
+  dap.repl.toggle()
+end
+
+local function view_test_report()
+  local ok, junit = pcall(require, 'jdtls.junit')
+  if ok then
+    local bufnr = vim.api.nvim_get_current_buf()
+    junit.mk_test_results(bufnr)
+  else
+    vim.notify('jdtls.junit module not available.', vim.log.levels.WARN)
+  end
+end
+
+local function change_java_runtime()
+  local ok, user_java = pcall(require, 'user.java')
+  if not ok then
+    vim.notify('user.java module not available.', vim.log.levels.WARN)
+    return
+  end
+
+  local config = user_java.jdtls_config()
+  local runtimes = config and config.settings and config.settings.java
+    and config.settings.java.configuration and config.settings.java.configuration.runtimes
+  if not runtimes or #runtimes == 0 then
+    vim.notify('No Java runtimes detected.', vim.log.levels.WARN)
+    return
+  end
+
+  vim.ui.select(runtimes, {
+    prompt = 'Select Java runtime',
+    format_item = function(item)
+      local marker = item.default and ' (current)' or ''
+      return item.name .. ' — ' .. item.path .. marker
+    end,
+  }, function(choice)
+    if choice then
+      vim.notify('Selected runtime: ' .. choice.name .. '\nRestart jdtls to apply (:LspRestart jdtls)', vim.log.levels.INFO)
+    end
+  end)
+end
+
 local function attach_java_keymaps(bufnr)
+  local jdtls = require('jdtls')
+
   buf_map(bufnr, 'n', '<leader>jo', organize_imports, 'Java: Organize imports')
-  buf_map(bufnr, { 'n', 'v' }, '<leader>jv', '<cmd>JavaRefactorExtractVariable<CR>', 'Java: Extract variable')
-  buf_map(bufnr, { 'n', 'v' }, '<leader>jV', '<cmd>JavaRefactorExtractVariableAllOccurrence<CR>', 'Java: Extract variable (all)')
-  buf_map(bufnr, { 'n', 'v' }, '<leader>jc', '<cmd>JavaRefactorExtractConstant<CR>', 'Java: Extract constant')
-  buf_map(bufnr, { 'n', 'v' }, '<leader>jm', '<cmd>JavaRefactorExtractMethod<CR>', 'Java: Extract method')
-  buf_map(bufnr, { 'n', 'v' }, '<leader>jf', '<cmd>JavaRefactorExtractField<CR>', 'Java: Extract field')
-  buf_map(bufnr, 'n', '<leader>jr', '<cmd>JavaRunnerRunMain<CR>', 'Java: Run main')
-  buf_map(bufnr, 'n', '<leader>js', '<cmd>JavaRunnerStopMain<CR>', 'Java: Stop main')
-  buf_map(bufnr, 'n', '<leader>jl', '<cmd>JavaRunnerToggleLogs<CR>', 'Java: Toggle runner logs')
-  buf_map(bufnr, 'n', '<leader>jtc', '<cmd>JavaTestRunCurrentClass<CR>', 'Java: Run test class')
-  buf_map(bufnr, 'n', '<leader>jtm', '<cmd>JavaTestRunCurrentMethod<CR>', 'Java: Run test method')
-  buf_map(bufnr, 'n', '<leader>jtr', '<cmd>JavaTestViewLastReport<CR>', 'Java: View last test report')
-  buf_map(bufnr, 'n', '<leader>jj', '<cmd>JavaSettingsChangeRuntime<CR>', 'Java: Change runtime')
+  buf_map(bufnr, 'n', '<leader>jv', jdtls.extract_variable, 'Java: Extract variable')
+  buf_map(bufnr, 'v', '<leader>jv', function() jdtls.extract_variable({ visual = true }) end, 'Java: Extract variable')
+  buf_map(bufnr, 'n', '<leader>jV', jdtls.extract_variable_all, 'Java: Extract variable (all)')
+  buf_map(bufnr, 'v', '<leader>jV', function() jdtls.extract_variable_all({ visual = true }) end, 'Java: Extract variable (all)')
+  buf_map(bufnr, 'n', '<leader>jc', jdtls.extract_constant, 'Java: Extract constant')
+  buf_map(bufnr, 'v', '<leader>jc', function() jdtls.extract_constant({ visual = true }) end, 'Java: Extract constant')
+  buf_map(bufnr, 'n', '<leader>jm', jdtls.extract_method, 'Java: Extract method')
+  buf_map(bufnr, 'v', '<leader>jm', function() jdtls.extract_method({ visual = true }) end, 'Java: Extract method')
+  buf_map(bufnr, { 'n', 'v' }, '<leader>jf', extract_field_refactoring, 'Java: Extract field')
+  buf_map(bufnr, 'n', '<leader>jr', run_main_class, 'Java: Run main')
+  buf_map(bufnr, 'n', '<leader>js', stop_main_class, 'Java: Stop main')
+  buf_map(bufnr, 'n', '<leader>jl', toggle_dap_repl, 'Java: Toggle runner logs')
+  buf_map(bufnr, 'n', '<leader>jtc', jdtls.test_class, 'Java: Run test class')
+  buf_map(bufnr, 'n', '<leader>jtm', jdtls.test_nearest_method, 'Java: Run test method')
+  buf_map(bufnr, 'n', '<leader>jtr', view_test_report, 'Java: View last test report')
+  buf_map(bufnr, 'n', '<leader>jj', change_java_runtime, 'Java: Change runtime')
   buf_map(bufnr, 'n', '<leader>ji', M.override_methods, 'Java: Override/Implement methods')
 end
 
