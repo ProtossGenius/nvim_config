@@ -108,30 +108,98 @@ local function run_scratchpad(bufnr, file_path, filetype)
   -- 保存文件
   vim.cmd('w')
 
+  local function do_run(cmd)
+    if cmd == '' then
+      vim.notify('不支持的语言类型', vim.log.levels.ERROR)
+      return
+    end
+
+    vim.notify("正在编译运行代码片段...", vim.log.levels.INFO)
+    local output = vim.fn.system(cmd)
+
+    -- 追加注释形式的运行结果
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local clean_lines = {}
+    local skipping = false
+    for _, line in ipairs(lines) do
+      if line:match('^/%*%*%*%*%* result %*%*%*%*') then
+        skipping = true
+      end
+      if not skipping then
+        table.insert(clean_lines, line)
+      end
+      if line:match('^%*%*+ output end %*+') then
+        skipping = false
+      end
+    end
+
+    -- 去除末尾空行
+    while #clean_lines > 0 and clean_lines[#clean_lines] == '' do
+      table.remove(clean_lines)
+    end
+
+    table.insert(clean_lines, '')
+    table.insert(clean_lines, "/***** result ****")
+    for _, ol in ipairs(vim.split(output, '\n', { plain = true })) do
+      table.insert(clean_lines, ol)
+    end
+    table.insert(clean_lines, "******** output end ******/")
+
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, clean_lines)
+    vim.cmd('w')
+    vim.notify("运行成功，输出已以注释形式追加在底部", vim.log.levels.INFO)
+  end
+
   local cmd = ''
   if filetype == 'java' then
     local project = require('user.project')
     local root = project.root(file_path)
-    local cp_entries = {}
-    if root and root ~= '' then
-      local candidate_dirs = {
-        vim.fs.joinpath(root, 'target', 'classes'),
-        vim.fs.joinpath(root, 'target', 'test-classes'),
-        vim.fs.joinpath(root, 'build', 'classes', 'java', 'main'),
-        vim.fs.joinpath(root, 'build', 'classes', 'java', 'test'),
-      }
-      for _, d in ipairs(candidate_dirs) do
-        local stat = uv.fs_stat(d)
-        if stat and stat.type == 'directory' then
-          table.insert(cp_entries, d)
+    local function fallback_run()
+      local cp_entries = {}
+      if root and root ~= '' then
+        local candidate_dirs = {
+          vim.fs.joinpath(root, 'target', 'classes'),
+          vim.fs.joinpath(root, 'target', 'test-classes'),
+          vim.fs.joinpath(root, 'build', 'classes', 'java', 'main'),
+          vim.fs.joinpath(root, 'build', 'classes', 'java', 'test'),
+        }
+        for _, d in ipairs(candidate_dirs) do
+          local stat = uv.fs_stat(d)
+          if stat and stat.type == 'directory' then
+            table.insert(cp_entries, d)
+          end
         end
       end
+      local cp_arg = ''
+      if #cp_entries > 0 then
+        cp_arg = ' -cp ' .. vim.fn.shellescape(table.concat(cp_entries, ':') .. ':.')
+      end
+      do_run('java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path))
     end
-    local cp_arg = ''
-    if #cp_entries > 0 then
-      cp_arg = ' -cp ' .. vim.fn.shellescape(table.concat(cp_entries, ':') .. ':.')
+
+    local ok, jdtls_dap = pcall(require, 'jdtls.dap')
+    local clients = vim.lsp.get_clients({ name = 'jdtls' })
+    if ok and jdtls_dap.fetch_main_configs and #clients > 0 then
+      local success = pcall(function()
+        jdtls_dap.fetch_main_configs({verbose = false}, function(configs)
+          vim.schedule(function()
+            if configs and #configs > 0 and configs[1].classPaths then
+              local cp_entries = configs[1].classPaths
+              local cp_arg = ' -cp ' .. vim.fn.shellescape(table.concat(cp_entries, ':') .. ':.')
+              do_run('java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path))
+            else
+              fallback_run()
+            end
+          end)
+        end)
+      end)
+      if not success then
+        fallback_run()
+      end
+    else
+      fallback_run()
     end
-    cmd = 'java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path)
+    return
   elseif filetype == 'cpp' then
     local bin = file_path:gsub('%.cpp$', '_bin')
     cmd = 'g++ -std=c++17 ' .. vim.fn.shellescape(file_path) .. ' -o ' .. vim.fn.shellescape(bin) .. ' && ' .. vim.fn.shellescape(bin)
@@ -142,45 +210,7 @@ local function run_scratchpad(bufnr, file_path, filetype)
     cmd = 'rustc ' .. vim.fn.shellescape(file_path) .. ' -o ' .. vim.fn.shellescape(bin) .. ' && ' .. vim.fn.shellescape(bin)
   end
 
-  if cmd == '' then
-    vim.notify('不支持的语言类型', vim.log.levels.ERROR)
-    return
-  end
-
-  vim.notify("正在编译运行代码片段...", vim.log.levels.INFO)
-  local output = vim.fn.system(cmd)
-
-  -- 追加注释形式的运行结果
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local clean_lines = {}
-  local skipping = false
-  for _, line in ipairs(lines) do
-    if line:match('^/%*%*%*%*%* result %*%*%*%*') then
-      skipping = true
-    end
-    if not skipping then
-      table.insert(clean_lines, line)
-    end
-    if line:match('^%*%*+ output end %*+') then
-      skipping = false
-    end
-  end
-
-  -- 去除末尾空行
-  while #clean_lines > 0 and clean_lines[#clean_lines] == '' do
-    table.remove(clean_lines)
-  end
-
-  table.insert(clean_lines, '')
-  table.insert(clean_lines, "/***** result ****")
-  for _, ol in ipairs(vim.split(output, '\n', { plain = true })) do
-    table.insert(clean_lines, ol)
-  end
-  table.insert(clean_lines, "******** output end ******/")
-
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, clean_lines)
-  vim.cmd('w')
-  vim.notify("运行成功，输出已以注释形式追加在底部", vim.log.levels.INFO)
+  do_run(cmd)
 end
 
 -- 创建 Scratchpad

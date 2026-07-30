@@ -556,6 +556,7 @@ function M.on_attach(client, bufnr)
   end
 
   if client.name == 'jdtls' then
+    require('jdtls').setup_dap({ hotcodereplace = 'auto' })
     attach_java_keymaps(bufnr)
   end
 

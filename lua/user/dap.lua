@@ -251,12 +251,22 @@ function M.setup()
               for _, target in ipairs(response.targets) do
                 local label = target.label or target.text
                 local insert_text = target.text or target.label
-                table.insert(items, {
+                local item = {
                   label = label,
                   insertText = insert_text,
                   filterText = label,
                   kind = kind_map[target.type] or cmp.lsp.CompletionItemKind.Property,
-                })
+                }
+                if target.start ~= nil and target.length ~= nil then
+                  item.textEdit = {
+                    range = {
+                      start = { line = params.context.cursor.row - 1, character = offset + target.start - 1 },
+                      ["end"] = { line = params.context.cursor.row - 1, character = offset + target.start - 1 + target.length },
+                    },
+                    newText = insert_text,
+                  }
+                end
+                table.insert(items, item)
               end
               callback({ items = items, isIncomplete = false })
             end)
