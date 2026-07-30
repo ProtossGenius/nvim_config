@@ -110,7 +110,28 @@ local function run_scratchpad(bufnr, file_path, filetype)
 
   local cmd = ''
   if filetype == 'java' then
-    cmd = 'java ' .. vim.fn.shellescape(file_path)
+    local project = require('user.project')
+    local root = project.root(file_path)
+    local cp_entries = {}
+    if root and root ~= '' then
+      local candidate_dirs = {
+        vim.fs.joinpath(root, 'target', 'classes'),
+        vim.fs.joinpath(root, 'target', 'test-classes'),
+        vim.fs.joinpath(root, 'build', 'classes', 'java', 'main'),
+        vim.fs.joinpath(root, 'build', 'classes', 'java', 'test'),
+      }
+      for _, d in ipairs(candidate_dirs) do
+        local stat = uv.fs_stat(d)
+        if stat and stat.type == 'directory' then
+          table.insert(cp_entries, d)
+        end
+      end
+    end
+    local cp_arg = ''
+    if #cp_entries > 0 then
+      cp_arg = ' -cp ' .. vim.fn.shellescape(table.concat(cp_entries, ':') .. ':.')
+    end
+    cmd = 'java' .. cp_arg .. ' ' .. vim.fn.shellescape(file_path)
   elseif filetype == 'cpp' then
     local bin = file_path:gsub('%.cpp$', '_bin')
     cmd = 'g++ -std=c++17 ' .. vim.fn.shellescape(file_path) .. ' -o ' .. vim.fn.shellescape(bin) .. ' && ' .. vim.fn.shellescape(bin)
@@ -251,5 +272,9 @@ function M.open_scratchpad()
 end
 
 M._test_run = run_scratchpad
+
+vim.api.nvim_create_user_command('Scratchpad', function()
+  M.open_scratchpad()
+end, { desc = 'Open floating scratchpad window for quick code verification' })
 
 return M
