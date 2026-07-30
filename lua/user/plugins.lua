@@ -414,7 +414,10 @@ return {
           local buftype = vim.api.nvim_get_option_value('buftype', { buf = 0 })
           if buftype == 'prompt' then
             local ft = vim.bo.filetype
-            return ft == 'dap-repl' or ft == 'dapui_watches'
+            return ft == 'dap-repl'
+              or ft == 'dapui_watches'
+              or ft == 'dapui_eval'
+              or ft == 'dapui_hover'
           end
           return not (vim.fn.reg_recording() ~= '' or vim.fn.reg_executing() ~= '')
         end,
@@ -643,4 +646,3 @@ return {
     end,
   },
 }
-

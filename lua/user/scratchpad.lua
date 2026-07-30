@@ -3,6 +3,8 @@ local M = {}
 local uv = vim.uv or vim.loop
 local output_buf = nil
 local output_win = nil
+local OUTPUT_START_MARKER = '============ output start ==============='
+local OUTPUT_END_MARKER = '============ output end ================='
 
 local function normalize(path)
   if not path or path == '' then
@@ -15,6 +17,55 @@ end
 local function is_file(path)
   local stat = path and path ~= '' and uv.fs_stat(path) or nil
   return stat and stat.type == 'file' or false
+end
+
+local function trim_trailing_blank_lines(lines)
+  while #lines > 0 and lines[#lines] == '' do
+    table.remove(lines)
+  end
+end
+
+local function strip_output_block(lines)
+  local clean_lines = {}
+  local i = 1
+
+  while i <= #lines do
+    if lines[i]:match('^/%*%*%*%*%* result %*%*%*%*') then
+      i = i + 1
+      while i <= #lines and not lines[i]:match('^%*%*+ output end %*+') do
+        i = i + 1
+      end
+      if i <= #lines then
+        i = i + 1
+      end
+      trim_trailing_blank_lines(clean_lines)
+    elseif lines[i] == '/*' and lines[i + 1] == OUTPUT_START_MARKER then
+      i = i + 2
+      while i <= #lines and lines[i] ~= OUTPUT_END_MARKER do
+        i = i + 1
+      end
+      if i <= #lines and lines[i] == OUTPUT_END_MARKER then
+        i = i + 1
+      end
+      if i <= #lines and lines[i] == '*/' then
+        i = i + 1
+      end
+      trim_trailing_blank_lines(clean_lines)
+    else
+      table.insert(clean_lines, lines[i])
+      i = i + 1
+    end
+  end
+
+  return clean_lines
+end
+
+local function sanitize_output_line(line)
+  if line == OUTPUT_START_MARKER or line == OUTPUT_END_MARKER then
+    return ' ' .. line
+  end
+
+  return (line:gsub('%*/', '* /'))
 end
 
 local function starts_with_path(path, root)
@@ -191,6 +242,16 @@ local function get_scratch_template(bufnr, current_path, filetype)
   return nil, nil, nil
 end
 
+local function ensure_scratch_file(path, template)
+  local stat = uv.fs_stat(path)
+  if stat then
+    return stat.type == 'file'
+  end
+
+  vim.fn.writefile(template, path)
+  return true
+end
+
 -- 编译并运行临时验证代码
 local function run_scratchpad(bufnr, file_path, filetype)
   -- 保存文件
@@ -207,31 +268,17 @@ local function run_scratchpad(bufnr, file_path, filetype)
 
     -- 追加注释形式的运行结果
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    local clean_lines = {}
-    local skipping = false
-    for _, line in ipairs(lines) do
-      if line:match('^/%*%*%*%*%* result %*%*%*%*') then
-        skipping = true
-      end
-      if not skipping then
-        table.insert(clean_lines, line)
-      end
-      if line:match('^%*%*+ output end %*+') then
-        skipping = false
-      end
-    end
-
-    -- 去除末尾空行
-    while #clean_lines > 0 and clean_lines[#clean_lines] == '' do
-      table.remove(clean_lines)
-    end
+    local clean_lines = strip_output_block(lines)
+    trim_trailing_blank_lines(clean_lines)
 
     table.insert(clean_lines, '')
-    table.insert(clean_lines, "/***** result ****")
+    table.insert(clean_lines, '/*')
+    table.insert(clean_lines, OUTPUT_START_MARKER)
     for _, ol in ipairs(vim.split(output, '\n', { plain = true })) do
-      table.insert(clean_lines, ol)
+      table.insert(clean_lines, sanitize_output_line(ol))
     end
-    table.insert(clean_lines, "******** output end ******/")
+    table.insert(clean_lines, OUTPUT_END_MARKER)
+    table.insert(clean_lines, '*/')
 
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, clean_lines)
     vim.cmd('w')
@@ -326,8 +373,10 @@ function M.open_scratchpad()
     return
   end
 
-  -- 写入文件以使 LSP 能够探测到并附加
-  vim.fn.writefile(template, scratch_path)
+  if not ensure_scratch_file(scratch_path, template) then
+    vim.notify('Scratchpad 路径已存在但不是普通文件', vim.log.levels.ERROR)
+    return
+  end
 
   -- 创建新 buffer 并加载临时文件
   local scratch_buf = vim.fn.bufadd(scratch_path)
@@ -370,12 +419,11 @@ function M.open_scratchpad()
     vim.api.nvim_win_close(winid, true)
   end, vim.tbl_extend('force', map_opts, { desc = 'Scratchpad: 关闭窗口' }))
 
-  -- 关闭时自动清理临时文件
+  -- 关闭时自动清理临时生成的可执行文件
   vim.api.nvim_create_autocmd('BufWipeout', {
     buffer = scratch_buf,
     once = true,
     callback = function()
-      pcall(os.remove, scratch_path)
       if filetype == 'cpp' then
         local bin = scratch_path:gsub('%.cpp$', '_bin')
         pcall(os.remove, bin)

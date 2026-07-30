@@ -93,7 +93,7 @@ end
 local replacement_items = nil
 dap_source:complete({
   context = {
-    cursor = { col = 7, line = 1, row = 2 },
+    cursor = { col = 7, line = 1 },
     cursor_line = "> user.",
   }
 }, function(result)

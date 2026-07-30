@@ -6,6 +6,22 @@ require('lazy').load({ plugins = { 'nvim-cmp', 'nvim-dap', 'nvim-dap-ui', 'nvim-
 local cmp = require('cmp')
 local dap = require('dap')
 
+local function current_source_names()
+  local names = {}
+  for _, source in ipairs(cmp.get_config().sources or {}) do
+    table.insert(names, source.name)
+  end
+  return names
+end
+
+local function cmp_enabled()
+  local enabled = cmp.get_config().enabled
+  if type(enabled) == 'function' then
+    return enabled()
+  end
+  return enabled
+end
+
 -- 1. Mock DAP session first before anything else loads dapui client
 local mock_source_path = vim.fn.stdpath('config') .. "/init.lua"
 local mock_session = {
@@ -78,16 +94,38 @@ local dummy_buf = vim.api.nvim_create_buf(false, true)
 vim.bo[dummy_buf].buftype = 'prompt'
 vim.bo[dummy_buf].filetype = 'dap-repl'
 vim.api.nvim_set_current_buf(dummy_buf)
-support.expect_true('cmp enabled in dap-repl', cmp.get_config().enabled())
+support.expect_true('cmp enabled in dap-repl', cmp_enabled())
 
 local watches_buf = vim.api.nvim_create_buf(false, true)
 vim.bo[watches_buf].buftype = 'prompt'
 vim.bo[watches_buf].filetype = 'dapui_watches'
 vim.api.nvim_set_current_buf(watches_buf)
-support.expect_true('cmp enabled in dapui_watches', cmp.get_config().enabled())
+support.expect_true('cmp enabled in dapui_watches', cmp_enabled())
+
+local eval_buf = vim.api.nvim_create_buf(false, true)
+vim.bo[eval_buf].buftype = 'prompt'
+vim.bo[eval_buf].filetype = 'dapui_eval'
+vim.api.nvim_set_current_buf(eval_buf)
+support.expect_true('cmp enabled in dapui_eval', cmp_enabled())
+support.expect_true('dapui_eval includes dap source', vim.tbl_contains(current_source_names(), 'dap'))
+
+local hover_buf = vim.api.nvim_create_buf(false, true)
+vim.bo[hover_buf].buftype = 'prompt'
+vim.bo[hover_buf].filetype = 'dapui_hover'
+vim.api.nvim_set_current_buf(hover_buf)
+support.expect_true('cmp enabled in dapui_hover', cmp_enabled())
+support.expect_true('dapui_hover includes dap source', vim.tbl_contains(current_source_names(), 'dap'))
 
 -- Open init.lua in a window first so the jump target exists
 vim.cmd('edit ' .. mock_source_path)
+
+support.feed('<Space>dB')
+
+local condition_buf = vim.api.nvim_get_current_buf()
+support.expect_equal('conditional breakpoint filetype tracks source buffer', vim.bo[condition_buf].filetype, 'lua')
+support.expect_true('conditional breakpoint includes dap source', vim.tbl_contains(current_source_names(), 'dap'))
+support.expect_true('conditional breakpoint includes lsp source', vim.tbl_contains(current_source_names(), 'nvim_lsp'))
+support.feed('<Esc>')
 
 -- Open DAP UI Stacks buffer and render
 dapui.open()

@@ -26,6 +26,122 @@ local function kill_project_debuggee_processes()
 end
 
 local M = {}
+local dap_source_registered = false
+
+local function cursor_row(params)
+  local cursor = params.context and params.context.cursor or {}
+  if cursor.row ~= nil then
+    return cursor.row - 1
+  end
+  if cursor.line ~= nil then
+    return cursor.line
+  end
+  return 0
+end
+
+local function ensure_dap_source(cmp)
+  if dap_source_registered then
+    return
+  end
+
+  local dap_source = {}
+  function dap_source:is_available()
+    return require('dap').session() ~= nil
+  end
+  function dap_source:get_trigger_characters()
+    return { '.', ':', '->', '[' }
+  end
+  function dap_source:get_keyword_pattern()
+    return [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]]
+  end
+  function dap_source:complete(params, callback)
+    local session = require('dap').session()
+    if not session then
+      callback()
+      return
+    end
+    local col = params.context.cursor.col
+    local line = params.context.cursor_line
+    local offset = 0
+    if vim.startswith(line, "> ") then
+      offset = 2
+    elseif vim.startswith(line, "dap> ") then
+      offset = 5
+    end
+    local line_to_cursor = line:sub(offset + 1, col)
+    local row = cursor_row(params)
+    session:request('completions', {
+      frameId = (session.current_frame or {}).id,
+      text = line_to_cursor,
+      column = col + 1 - offset
+    }, function(err, response)
+      if err or not response or not response.targets then
+        callback()
+        return
+      end
+      local items = {}
+      local kind_map = {
+        method = cmp.lsp.CompletionItemKind.Method,
+        ["function"] = cmp.lsp.CompletionItemKind.Function,
+        field = cmp.lsp.CompletionItemKind.Field,
+        property = cmp.lsp.CompletionItemKind.Property,
+        variable = cmp.lsp.CompletionItemKind.Variable,
+        class = cmp.lsp.CompletionItemKind.Class,
+        module = cmp.lsp.CompletionItemKind.Module,
+        value = cmp.lsp.CompletionItemKind.Value,
+      }
+      for _, target in ipairs(response.targets) do
+        local label = target.label or target.text
+        local insert_text = target.text or target.label
+        local item = {
+          label = label,
+          insertText = insert_text,
+          filterText = label,
+          kind = kind_map[target.type] or cmp.lsp.CompletionItemKind.Property,
+        }
+        if target.start ~= nil then
+          local length = target.length or 0
+          item.textEdit = {
+            range = {
+              start = { line = row, character = offset + target.start - 1 },
+              ["end"] = { line = row, character = offset + target.start - 1 + length },
+            },
+            newText = insert_text,
+          }
+        end
+        table.insert(items, item)
+      end
+      callback({ items = items, isIncomplete = false })
+    end)
+  end
+
+  cmp.register_source('dap', dap_source)
+  dap_source_registered = true
+end
+
+function M.setup_completion(bufnr, extra_sources)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  vim.bo[bufnr].omnifunc = 'v:lua.require("dap.repl").omnifunc'
+
+  local cmp_ok, cmp = pcall(require, 'cmp')
+  if not cmp_ok then
+    return false
+  end
+
+  ensure_dap_source(cmp)
+  vim.api.nvim_buf_call(bufnr, function()
+    cmp.setup.buffer({
+      enabled = true,
+      sources = cmp.config.sources({
+        { name = 'dap' },
+      }, extra_sources or {
+        { name = 'buffer' },
+      }),
+    })
+  end)
+
+  return true
+end
 
 function M.setup()
   local dap = require('dap')
@@ -194,96 +310,13 @@ function M.setup()
     desc = 'Toggle a DAP breakpoint on the current line',
   })
 
-  local dap_source_registered = false
   -- Enable omnifunc autocompletion in DAP REPL and watches windows
   vim.api.nvim_create_autocmd('FileType', {
     pattern = { 'dap-repl', 'dapui_watches', 'dapui_eval', 'dapui_hover' },
-    callback = function()
-      vim.bo.omnifunc = 'v:lua.require("dap.repl").omnifunc'
-      local cmp_ok, cmp = pcall(require, 'cmp')
-      if cmp_ok then
-        if not dap_source_registered then
-          local dap_source = {}
-          function dap_source:is_available()
-            return require('dap').session() ~= nil
-          end
-          function dap_source:get_trigger_characters()
-            return { '.', ':', '->', '[' }
-          end
-          function dap_source:get_keyword_pattern()
-            return [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]]
-          end
-          function dap_source:complete(params, callback)
-            local session = require('dap').session()
-            if not session then
-              callback()
-              return
-            end
-            local col = params.context.cursor.col
-            local line = params.context.cursor_line
-            local offset = 0
-            if vim.startswith(line, "> ") then
-              offset = 2
-            elseif vim.startswith(line, "dap> ") then
-              offset = 5
-            end
-            local line_to_cursor = line:sub(offset + 1, col)
-            session:request('completions', {
-              frameId = (session.current_frame or {}).id,
-              text = line_to_cursor,
-              column = col + 1 - offset
-            }, function(err, response)
-              if err or not response or not response.targets then
-                callback()
-                return
-              end
-              local items = {}
-              local kind_map = {
-                method = cmp.lsp.CompletionItemKind.Method,
-                ["function"] = cmp.lsp.CompletionItemKind.Function,
-                field = cmp.lsp.CompletionItemKind.Field,
-                property = cmp.lsp.CompletionItemKind.Property,
-                variable = cmp.lsp.CompletionItemKind.Variable,
-                class = cmp.lsp.CompletionItemKind.Class,
-                module = cmp.lsp.CompletionItemKind.Module,
-                value = cmp.lsp.CompletionItemKind.Value,
-              }
-              for _, target in ipairs(response.targets) do
-                local label = target.label or target.text
-                local insert_text = target.text or target.label
-                local item = {
-                  label = label,
-                  insertText = insert_text,
-                  filterText = label,
-                  kind = kind_map[target.type] or cmp.lsp.CompletionItemKind.Property,
-                }
-                if target.start ~= nil then
-                  local length = target.length or 0
-                  item.textEdit = {
-                    range = {
-                      start = { line = params.context.cursor.row - 1, character = offset + target.start - 1 },
-                      ["end"] = { line = params.context.cursor.row - 1, character = offset + target.start - 1 + length },
-                    },
-                    newText = insert_text,
-                  }
-                end
-                table.insert(items, item)
-              end
-              callback({ items = items, isIncomplete = false })
-            end)
-          end
-          cmp.register_source('dap', dap_source)
-          dap_source_registered = true
-        end
-
-        cmp.setup.buffer({
-          sources = cmp.config.sources({
-            { name = 'dap' },
-          }, {
-            { name = 'buffer' },
-          }),
-        })
-      end
+    callback = function(args)
+      M.setup_completion(args.buf, {
+        { name = 'buffer' },
+      })
     end,
   })
 end

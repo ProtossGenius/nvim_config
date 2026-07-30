@@ -396,6 +396,12 @@ dap_map('n', '<leader>dB', function()
     pcall(vim.lsp.buf_attach_client, buf, client.id)
   end
 
+  require('user.dap').setup_completion(buf, {
+    { name = 'nvim_lsp' },
+    { name = 'buffer' },
+    { name = 'path' },
+  })
+
   local width = 60
   local height = 1
   local row = math.floor((vim.o.lines - height) / 2)
