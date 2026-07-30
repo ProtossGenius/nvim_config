@@ -435,7 +435,31 @@ dap_map('n', '<leader>dc', function() require('dap').continue() end, 'Debug: Con
 dap_map('n', '<leader>dn', function() require('dap').step_over() end, 'Debug: Step over / Next')
 dap_map('n', '<leader>di', function() require('dap').step_into() end, 'Debug: Step into')
 dap_map('n', '<leader>do', function() require('dap').step_out() end, 'Debug: Step out')
-dap_map('n', '<leader>dr', function() require('dap').repl.open() end, 'Debug: Open REPL console')
+dap_map('n', '<leader>dr', function()
+  local dap = require('dap')
+  if dap.session() then
+    dap.repl.toggle()
+  else
+    local user_dap = require('user.dap')
+    local cpath = user_dap.config_path and user_dap.config_path() or ''
+    if cpath ~= '' and vim.fn.filereadable(cpath) == 1 then
+      user_dap.start(0)
+    elseif vim.bo.filetype == 'java' then
+      local ok, jdtls_dap = pcall(require, 'jdtls.dap')
+      if ok then
+        jdtls_dap.setup_dap_main_class_configs({
+          on_ready = function()
+            dap.continue()
+          end,
+        })
+      else
+        dap.continue()
+      end
+    else
+      dap.continue()
+    end
+  end
+end, 'Debug: Run / Open REPL console')
 dap_map('n', '<leader>da', '<cmd>DapAttach<cr>', 'Debug: Attach debugger (TCP port / PID)')
 dap_map('n', '<leader>dq', '<cmd>DapTerminate<cr>', 'Debug: Terminate session')
 

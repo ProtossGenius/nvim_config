@@ -251,9 +251,10 @@ local function format_visual_selection()
   })
 end
 
-local function extract_field_refactoring()
-  -- extractField is a valid jdtls refactoring but nvim-jdtls doesn't expose it.
-  -- Use code_action with a filter to find and apply it.
+local function extract_field_refactoring(is_visual)
+  if is_visual then
+    vim.cmd('normal! \27')
+  end
   vim.lsp.buf.code_action({
     apply = true,
     context = {
@@ -333,14 +334,15 @@ local function attach_java_keymaps(bufnr)
 
   buf_map(bufnr, 'n', '<leader>jo', organize_imports, 'Java: Organize imports')
   buf_map(bufnr, 'n', '<leader>jv', jdtls.extract_variable, 'Java: Extract variable')
-  buf_map(bufnr, 'v', '<leader>jv', function() jdtls.extract_variable({ visual = true }) end, 'Java: Extract variable')
+  buf_map(bufnr, 'v', '<leader>jv', '<ESC><cmd>lua require("jdtls").extract_variable(true)<CR>', 'Java: Extract variable')
   buf_map(bufnr, 'n', '<leader>jV', jdtls.extract_variable_all, 'Java: Extract variable (all)')
-  buf_map(bufnr, 'v', '<leader>jV', function() jdtls.extract_variable_all({ visual = true }) end, 'Java: Extract variable (all)')
+  buf_map(bufnr, 'v', '<leader>jV', '<ESC><cmd>lua require("jdtls").extract_variable_all(true)<CR>', 'Java: Extract variable (all)')
   buf_map(bufnr, 'n', '<leader>jc', jdtls.extract_constant, 'Java: Extract constant')
-  buf_map(bufnr, 'v', '<leader>jc', function() jdtls.extract_constant({ visual = true }) end, 'Java: Extract constant')
+  buf_map(bufnr, 'v', '<leader>jc', '<ESC><cmd>lua require("jdtls").extract_constant(true)<CR>', 'Java: Extract constant')
   buf_map(bufnr, 'n', '<leader>jm', jdtls.extract_method, 'Java: Extract method')
-  buf_map(bufnr, 'v', '<leader>jm', function() jdtls.extract_method({ visual = true }) end, 'Java: Extract method')
-  buf_map(bufnr, { 'n', 'v' }, '<leader>jf', extract_field_refactoring, 'Java: Extract field')
+  buf_map(bufnr, 'v', '<leader>jm', '<ESC><cmd>lua require("jdtls").extract_method(true)<CR>', 'Java: Extract method')
+  buf_map(bufnr, 'n', '<leader>jf', function() extract_field_refactoring(false) end, 'Java: Extract field')
+  buf_map(bufnr, 'v', '<leader>jf', function() extract_field_refactoring(true) end, 'Java: Extract field')
   buf_map(bufnr, 'n', '<leader>jr', run_main_class, 'Java: Run main')
   buf_map(bufnr, 'n', '<leader>js', stop_main_class, 'Java: Stop main')
   buf_map(bufnr, 'n', '<leader>jl', toggle_dap_repl, 'Java: Toggle runner logs')

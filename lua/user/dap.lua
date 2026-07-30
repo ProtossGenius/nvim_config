@@ -197,7 +197,7 @@ function M.setup()
   local dap_source_registered = false
   -- Enable omnifunc autocompletion in DAP REPL and watches windows
   vim.api.nvim_create_autocmd('FileType', {
-    pattern = { 'dap-repl', 'dapui_watches' },
+    pattern = { 'dap-repl', 'dapui_watches', 'dapui_eval', 'dapui_hover' },
     callback = function()
       vim.bo.omnifunc = 'v:lua.require("dap.repl").omnifunc'
       local cmp_ok, cmp = pcall(require, 'cmp')
@@ -206,6 +206,9 @@ function M.setup()
           local dap_source = {}
           function dap_source:is_available()
             return require('dap').session() ~= nil
+          end
+          function dap_source:get_trigger_characters()
+            return { '.', ':', '->', '[' }
           end
           function dap_source:get_keyword_pattern()
             return [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]]
@@ -235,10 +238,24 @@ function M.setup()
                 return
               end
               local items = {}
+              local kind_map = {
+                method = cmp.lsp.CompletionItemKind.Method,
+                ["function"] = cmp.lsp.CompletionItemKind.Function,
+                field = cmp.lsp.CompletionItemKind.Field,
+                property = cmp.lsp.CompletionItemKind.Property,
+                variable = cmp.lsp.CompletionItemKind.Variable,
+                class = cmp.lsp.CompletionItemKind.Class,
+                module = cmp.lsp.CompletionItemKind.Module,
+                value = cmp.lsp.CompletionItemKind.Value,
+              }
               for _, target in ipairs(response.targets) do
+                local label = target.label or target.text
+                local insert_text = target.text or target.label
                 table.insert(items, {
-                  label = target.label,
-                  insertText = target.text,
+                  label = label,
+                  insertText = insert_text,
+                  filterText = label,
+                  kind = kind_map[target.type] or cmp.lsp.CompletionItemKind.Property,
                 })
               end
               callback({ items = items, isIncomplete = false })
