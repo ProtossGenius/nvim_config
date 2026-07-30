@@ -39,6 +39,27 @@ local function cursor_row(params)
   return 0
 end
 
+local function utf16_character(text, vim_col)
+  local cmp_misc = require('cmp.utils.misc')
+  return cmp_misc.to_utfindex(text, vim_col)
+end
+
+local function completion_segment_start(text)
+  local start = 1
+  local char_count = vim.fn.strchars(text)
+
+  for index = 0, char_count - 1 do
+    local byte_start = vim.str_byteindex(text, index)
+    local byte_end = vim.str_byteindex(text, index + 1)
+    local char = text:sub(byte_start + 1, byte_end)
+    if char:match('%s') or (char:match('[%p]') and char ~= '_' and char ~= '$') then
+      start = byte_end + 1
+    end
+  end
+
+  return start
+end
+
 local function ensure_dap_source(cmp)
   if dap_source_registered then
     return
@@ -52,7 +73,7 @@ local function ensure_dap_source(cmp)
     return { '.', ':', '->', '[' }
   end
   function dap_source:get_keyword_pattern()
-    return [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]]
+    return [[\%(-\?\d\+\%(\.\d\+\)\?\|\%(\h\|\$\|[^\x00-\x7F]\)\%(\w\|\$\|[^\x00-\x7F]\)*\)]]
   end
   function dap_source:complete(params, callback)
     local session = require('dap').session()
@@ -70,10 +91,15 @@ local function ensure_dap_source(cmp)
     end
     local line_to_cursor = line:sub(offset + 1, col)
     local row = cursor_row(params)
+    local offset_character = utf16_character(line, offset + 1)
+    local logical_col = ((params.context.cursor or {}).character ~= nil)
+      and (((params.context.cursor or {}).character + 1) - offset_character)
+      or (utf16_character(line_to_cursor, #line_to_cursor + 1) + 1)
+    local fallback_start = utf16_character(line_to_cursor, completion_segment_start(line_to_cursor)) + 1
     session:request('completions', {
       frameId = (session.current_frame or {}).id,
       text = line_to_cursor,
-      column = col + 1 - offset
+      column = logical_col
     }, function(err, response)
       if err or not response or not response.targets then
         callback()
@@ -99,12 +125,22 @@ local function ensure_dap_source(cmp)
           filterText = label,
           kind = kind_map[target.type] or cmp.lsp.CompletionItemKind.Property,
         }
-        if target.start ~= nil then
-          local length = target.length or 0
+        local start = target.start
+        local synthesized_start = false
+        if start == nil or start <= 0 then
+          start = fallback_start
+          synthesized_start = true
+        end
+        if start ~= nil then
+          local length = target.length
+          if length == nil then
+            length = synthesized_start and math.max(logical_col - start, 0) or 0
+          end
+          length = math.max(length, 0)
           item.textEdit = {
             range = {
-              start = { line = row, character = offset + target.start - 1 },
-              ["end"] = { line = row, character = offset + target.start - 1 + length },
+              start = { line = row, character = offset_character + start - 1 },
+              ["end"] = { line = row, character = offset_character + start - 1 + length },
             },
             newText = insert_text,
           }

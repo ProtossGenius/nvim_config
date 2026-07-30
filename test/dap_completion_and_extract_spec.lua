@@ -63,6 +63,24 @@ support.expect_true('trigger characters includes dot', vim.tbl_contains(triggers
 
 -- Test dap_source completion output
 local completed_items = nil
+local completion_args = nil
+mock_session.request = function(self, command, args, cb)
+  if command == "completions" then
+    completion_args = vim.deepcopy(args)
+    support.expect_equal('dap completions frameId', args.frameId, 42)
+    support.expect_equal('dap completions text', args.text, "user.")
+    cb(nil, {
+      targets = {
+        { label = "getName()", text = "getName()", type = "method" },
+        { label = "id", text = "id", type = "field" },
+        { label = "getEmail()", text = "getEmail()", type = "method" },
+      }
+    })
+  else
+    cb(nil, {})
+  end
+end
+
 dap_source:complete({
   context = {
     cursor = { col = 5, line = 0, row = 1 },
@@ -73,6 +91,7 @@ dap_source:complete({
 end)
 
 support.expect_true('completion callback returned items', completed_items ~= nil and #completed_items == 3)
+support.expect_equal('dap completions column without cursor.character fallback', completion_args.column, 6)
 support.expect_equal('first completion item label', completed_items[1].label, 'getName()')
 support.expect_equal('first completion item kind is Method', completed_items[1].kind, cmp.lsp.CompletionItemKind.Method)
 support.expect_equal('second completion item label', completed_items[2].label, 'id')
