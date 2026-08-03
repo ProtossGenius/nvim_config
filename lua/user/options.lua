@@ -32,7 +32,7 @@ opt.signcolumn = 'yes'
 -- Behavior
 opt.backspace = 'indent,eol,start'
 opt.clipboard = 'unnamedplus' -- Use system clipboard
-opt.completeopt = 'menu,menuone,noselect'
+opt.completeopt = 'menu,menuone,noinsert,noselect'
 opt.hidden = true
 opt.mouse = 'a'
 opt.timeout = true
@@ -51,4 +51,3 @@ vim.g.enable_spring_boot_tools = false
 
 -- Toggle keys for JDTLS multi-select floating UI (Override/Implements selection)
 vim.g.select_many_toggle_keys = { "-", "<Space>" }
-

@@ -21,6 +21,7 @@ echo "==> startup smoke"
 
 run_spec "test/commenting_spec.lua"
 run_spec "test/lsp_keymaps_spec.lua"
+run_spec "test/cmp_options_spec.lua"
 run_spec "test/select_spec.lua"
 run_spec "test/jump_spec.lua"
 run_spec "test/file_actions_spec.lua"
