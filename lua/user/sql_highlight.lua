@@ -117,6 +117,29 @@ function M.highlight_corresponding()
   end
 end
 
+function M.select_corresponding()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local mode = vim.api.nvim_get_mode().mode
+  if mode:find("[vV\22]") then
+    vim.cmd("normal! \27")
+  end
+
+  local sr, sc, er, ec = M.get_corresponding_range(bufnr)
+  if not sr then
+    return false
+  end
+
+  local start_row = sr + 1
+  local start_col = sc
+  local end_row = er + 1
+  local end_col = math.max(sc, ec - 1)
+
+  vim.api.nvim_win_set_cursor(0, { start_row, start_col })
+  vim.cmd("normal! v")
+  vim.api.nvim_win_set_cursor(0, { end_row, end_col })
+  return true
+end
+
 function M.setup()
   -- Define a bold underline highlight that is always visible on any colorscheme
   vim.api.nvim_set_hl(0, hl_group, { underline = true, bold = true, bg = "#504945" })
@@ -143,24 +166,13 @@ function M.setup()
         end,
       })
 
-      vim.keymap.set('n', '=', function()
-        local sr, sc, er, ec = M.get_corresponding_range(bufnr)
-        if sr then
-          vim.schedule(function()
-            local start_row = sr + 1
-            local start_col = sc
-            local end_row = er + 1
-            local end_col = math.max(sc, ec - 1)
+      local jump_fn = function()
+        M.select_corresponding()
+      end
 
-            vim.api.nvim_win_set_cursor(0, { start_row, start_col })
-            vim.cmd('normal! v')
-            vim.api.nvim_win_set_cursor(0, { end_row, end_col })
-          end)
-          return ''
-        else
-          return '='
-        end
-      end, { buffer = bufnr, expr = true, silent = true, desc = 'Jump and select corresponding SQL field/value' })
+      for _, key in ipairs({ 'g=', 'gs', '<M-=>' }) do
+        vim.keymap.set({ 'n', 'x' }, key, jump_fn, { buffer = bufnr, silent = true, desc = 'Jump and select corresponding SQL field/value' })
+      end
     end,
   })
 end

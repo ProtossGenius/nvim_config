@@ -206,8 +206,8 @@ do
     highlight_at(1, 45), "id")
 end
 
--- ── Test 5: '=' shortcut jump and select ──────────────────────────────────
-print("--- Test 5: '=' shortcut jump and select ---")
+-- ── Test 5: Multiple consecutive ping-pong jumps ──────────────────────────
+print("--- Test 5: Multiple consecutive ping-pong jumps ---")
 
 do
   local bufnr = open_sql_buf({ "insert into test (name, id) values ('hello', 2);" })
@@ -217,29 +217,36 @@ do
   -- Move cursor to "name" (col 18)
   vim.api.nvim_win_set_cursor(0, { 1, 18 })
 
-  local sr, sc, er, ec = sql_hl.get_corresponding_range(bufnr)
-  if sr then
-    local start_row = sr + 1
-    local start_col = sc
-    local end_row = er + 1
-    local end_col = math.max(sc, ec - 1)
+  local all_ok = true
+  for step = 1, 10 do
+    local ok = sql_hl.select_corresponding()
+    if not ok then
+      all_ok = false
+      fail_count = fail_count + 1
+      table.insert(results, string.format("  FAIL  Consecutive jump failed at step %d", step))
+      break
+    end
 
-    vim.api.nvim_win_set_cursor(0, { start_row, start_col })
-    vim.cmd("normal! v")
-    vim.api.nvim_win_set_cursor(0, { end_row, end_col })
+    local cur = vim.api.nvim_win_get_cursor(0)
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)
+    local v_start = vim.fn.getpos("v")[3] - 1
+    local v_end = cur[2]
+    local sc = math.min(v_start, v_end)
+    local ec = math.max(v_start, v_end) + 1
+    local text = string.sub(lines[1], sc + 1, ec)
+    local expected = (step % 2 == 1) and "'hello'" or "name"
+
+    if text ~= expected then
+      all_ok = false
+      fail_count = fail_count + 1
+      table.insert(results, string.format("  FAIL  Consecutive jump step %d expected %s, got %s", step, expected, text))
+      break
+    end
   end
 
-  local mode = vim.api.nvim_get_mode().mode
-  local lines_sel = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)
-  local sel_text = string.sub(lines_sel[1], sc + 1, ec)
-  vim.cmd("normal! \27") -- Exit visual mode
-
-  if mode == "v" and sel_text == "'hello'" then
+  if all_ok then
     pass_count = pass_count + 1
-    table.insert(results, "  PASS  '=' shortcut from 'name' selected ''hello'' in visual mode")
-  else
-    fail_count = fail_count + 1
-    table.insert(results, string.format("  FAIL  '=' shortcut from 'name' failed (mode=%s, text=%s)", mode, sel_text))
+    table.insert(results, "  PASS  10 consecutive ping-pong jumps back and forth between 'name' and ''hello''")
   end
 end
 
