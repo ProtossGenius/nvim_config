@@ -625,6 +625,96 @@ function M.update_highlights(bufnr)
   end
 end
 
+function M.get_corresponding_range(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local filetype = vim.bo[bufnr].filetype
+  if not supported_filetypes[filetype] then
+    return nil
+  end
+
+  local cursor_pos = vim.api.nvim_win_get_cursor(0)
+  local cursor_row = cursor_pos[1] - 1
+  local cursor_col = cursor_pos[2]
+  local node = get_current_node()
+  if not node then
+    return nil
+  end
+
+  local call_expr = get_call_expression(node, filetype)
+  if not call_expr then
+    return nil
+  end
+
+  local arg_container = get_argument_container(call_expr)
+  if not arg_container then
+    return nil
+  end
+
+  local args = get_arguments(arg_container)
+  if #args == 0 then
+    return nil
+  end
+
+  local callee_text = get_callee_text(call_expr, arg_container, bufnr)
+  if callee_text == '' then
+    return nil
+  end
+
+  local resolved = resolve_format_call(bufnr, filetype, callee_text, args, arg_container)
+  if not resolved or resolved.format_idx > #args then
+    return nil
+  end
+
+  local format_node = args[resolved.format_idx]
+  local string_info = resolved.string_info
+  local placeholders = resolved.parser(string_info.content, resolved.parser_opts)
+  if #placeholders == 0 then
+    return nil
+  end
+
+  local format_start_row, format_start_col, format_end_row, format_end_col = format_node:range()
+  local arg_values = {}
+  for index = resolved.format_idx + 1, #args do
+    table.insert(arg_values, args[index])
+  end
+
+  if is_cursor_in_range(cursor_row, cursor_col, format_start_row, format_start_col, format_end_row, format_end_col) then
+    local cursor_offset = pos_to_offset(string_info.raw_text, string_info.start_row, string_info.start_col, cursor_row, cursor_col)
+    if not cursor_offset then
+      return nil
+    end
+
+    local content_offset = cursor_offset - string_info.content_start_offset + 1
+    if content_offset < 1 then
+      return nil
+    end
+
+    for placeholder_index, placeholder in ipairs(placeholders) do
+      if content_offset >= placeholder.start_offset and content_offset <= placeholder.end_offset then
+        local arg_node = arg_values[placeholder_index]
+        if arg_node and not arg_node:missing() then
+          return arg_node:range()
+        end
+        break
+      end
+    end
+  else
+    local cursor_arg_idx = get_cursor_argument_index(arg_container, cursor_row, cursor_col)
+    local placeholder_index = cursor_arg_idx - resolved.format_idx
+    if placeholder_index >= 1 and placeholder_index <= #placeholders then
+      local placeholder = placeholders[placeholder_index]
+      if placeholder then
+        local placeholder_start_offset = string_info.content_start_offset + placeholder.start_offset - 1
+        local placeholder_end_offset = string_info.content_start_offset + placeholder.end_offset
+        local p_start_row, p_start_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_start_offset)
+        local p_end_row, p_end_col = offset_to_pos(string_info.raw_text, string_info.start_row, string_info.start_col, placeholder_end_offset)
+        return p_start_row, p_start_col, p_end_row, p_end_col
+      end
+    end
+  end
+  return nil
+end
+
 function M.setup()
   local group = vim.api.nvim_create_augroup('PrintfHighlight', { clear = true })
   local filetypes = vim.tbl_keys(supported_filetypes)
@@ -648,6 +738,24 @@ function M.setup()
           M.clear_highlights(bufnr)
         end,
       })
+      vim.keymap.set('n', '=', function()
+        local sr, sc, er, ec = M.get_corresponding_range(bufnr)
+        if sr then
+          vim.schedule(function()
+            local start_row = sr + 1
+            local start_col = sc
+            local end_row = er + 1
+            local end_col = math.max(sc, ec - 1)
+
+            vim.api.nvim_win_set_cursor(0, { start_row, start_col })
+            vim.cmd('normal! v')
+            vim.api.nvim_win_set_cursor(0, { end_row, end_col })
+          end)
+          return ''
+        else
+          return '='
+        end
+      end, { buffer = bufnr, expr = true, silent = true, desc = 'Jump and select corresponding printf placeholder/argument' })
     end,
   })
 end

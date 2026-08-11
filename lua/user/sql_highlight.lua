@@ -3,9 +3,8 @@ local M = {}
 local ns = vim.api.nvim_create_namespace("sql_insert_highlight")
 local hl_group = "SqlInsertMatch"
 
-function M.highlight_corresponding()
-  local bufnr = vim.api.nvim_get_current_buf()
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+function M.get_corresponding_range(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   local ok, parser = pcall(vim.treesitter.get_parser, bufnr)
   if not ok or not parser then return end
@@ -49,9 +48,6 @@ function M.highlight_corresponding()
     end
 
     if current_list then
-      -- Find index of our node in current_list
-      -- If cursor is exactly on the list node (e.g., on comma), we can try to guess by column
-      -- but usually it's inside an element.
       local index = -1
       for i = 0, current_list:named_child_count() - 1 do
         if current_list:named_child(i) == target_node then
@@ -60,32 +56,26 @@ function M.highlight_corresponding()
         end
       end
 
-      -- If we didn't find the exact target node, it might mean the cursor is on commas, spaces or parens.
-      -- Fallback: find the child whose range contains the cursor, or the nearest child to the left.
       if index == -1 then
         local cursor = vim.api.nvim_win_get_cursor(0)
         local crow = cursor[1] - 1
         local ccol = cursor[2]
 
-        -- First try: cursor is inside a child's range (end_col is exclusive in TS)
         for i = 0, current_list:named_child_count() - 1 do
           local child = current_list:named_child(i)
           local sr, sc, er, ec = child:range()
           if crow == sr and crow == er then
-            -- single-row child
             if ccol >= sc and ccol < ec then
               index = i
               break
             end
           elseif (crow > sr or (crow == sr and ccol >= sc))
             and (crow < er or (crow == er and ccol < ec)) then
-            -- multi-row child
             index = i
             break
           end
         end
 
-        -- Second try: snap to the nearest child to the left of (or at) cursor
         if index == -1 then
           for i = current_list:named_child_count() - 1, 0, -1 do
             local child = current_list:named_child(i)
@@ -97,8 +87,6 @@ function M.highlight_corresponding()
           end
         end
 
-        -- Third try: cursor is before all children (e.g. on opening paren),
-        -- snap to the first child
         if index == -1 and current_list:named_child_count() > 0 then
           index = 0
         end
@@ -106,17 +94,26 @@ function M.highlight_corresponding()
 
       if index >= 0 and index < other_list:named_child_count() then
         local corresponding = other_list:named_child(index)
-        local sr, sc, er, ec = corresponding:range()
-        -- highlight corresponding node
-        vim.api.nvim_buf_set_extmark(bufnr, ns, sr, sc, {
-          end_row = er,
-          end_col = ec,
-          hl_group = hl_group,
-          hl_mode = "combine",
-          priority = 300,
-        })
+        return corresponding:range()
       end
     end
+  end
+  return nil
+end
+
+function M.highlight_corresponding()
+  local bufnr = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+
+  local sr, sc, er, ec = M.get_corresponding_range(bufnr)
+  if sr then
+    vim.api.nvim_buf_set_extmark(bufnr, ns, sr, sc, {
+      end_row = er,
+      end_col = ec,
+      hl_group = hl_group,
+      hl_mode = "combine",
+      priority = 300,
+    })
   end
 end
 
@@ -145,6 +142,25 @@ function M.setup()
           M.highlight_corresponding()
         end,
       })
+
+      vim.keymap.set('n', '=', function()
+        local sr, sc, er, ec = M.get_corresponding_range(bufnr)
+        if sr then
+          vim.schedule(function()
+            local start_row = sr + 1
+            local start_col = sc
+            local end_row = er + 1
+            local end_col = math.max(sc, ec - 1)
+
+            vim.api.nvim_win_set_cursor(0, { start_row, start_col })
+            vim.cmd('normal! v')
+            vim.api.nvim_win_set_cursor(0, { end_row, end_col })
+          end)
+          return ''
+        else
+          return '='
+        end
+      end, { buffer = bufnr, expr = true, silent = true, desc = 'Jump and select corresponding SQL field/value' })
     end,
   })
 end

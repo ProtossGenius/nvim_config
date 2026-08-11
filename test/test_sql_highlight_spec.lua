@@ -206,6 +206,43 @@ do
     highlight_at(1, 45), "id")
 end
 
+-- ── Test 5: '=' shortcut jump and select ──────────────────────────────────
+print("--- Test 5: '=' shortcut jump and select ---")
+
+do
+  local bufnr = open_sql_buf({ "insert into test (name, id) values ('hello', 2);" })
+  sql_hl.setup()
+  vim.cmd("doautocmd FileType sql")
+
+  -- Move cursor to "name" (col 18)
+  vim.api.nvim_win_set_cursor(0, { 1, 18 })
+
+  local sr, sc, er, ec = sql_hl.get_corresponding_range(bufnr)
+  if sr then
+    local start_row = sr + 1
+    local start_col = sc
+    local end_row = er + 1
+    local end_col = math.max(sc, ec - 1)
+
+    vim.api.nvim_win_set_cursor(0, { start_row, start_col })
+    vim.cmd("normal! v")
+    vim.api.nvim_win_set_cursor(0, { end_row, end_col })
+  end
+
+  local mode = vim.api.nvim_get_mode().mode
+  local lines_sel = vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)
+  local sel_text = string.sub(lines_sel[1], sc + 1, ec)
+  vim.cmd("normal! \27") -- Exit visual mode
+
+  if mode == "v" and sel_text == "'hello'" then
+    pass_count = pass_count + 1
+    table.insert(results, "  PASS  '=' shortcut from 'name' selected ''hello'' in visual mode")
+  else
+    fail_count = fail_count + 1
+    table.insert(results, string.format("  FAIL  '=' shortcut from 'name' failed (mode=%s, text=%s)", mode, sel_text))
+  end
+end
+
 -- ── Summary ─────────────────────────────────────────────────────────────
 print("")
 for _, r in ipairs(results) do
