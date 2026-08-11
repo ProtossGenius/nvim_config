@@ -57,6 +57,7 @@ if vim.fn.has('nvim-0.12') == 1 then
     python = 'python',
     rust = 'rust',
     sh = 'bash',
+    sql = 'sql',
     typescript = 'typescript',
     typescriptreact = 'tsx',
     xml = 'xml',
@@ -108,6 +109,9 @@ require('user.printf_highlight').setup()
 
 -- Java and MyBatis IDE enhancements
 require('user.java').setup()
+
+-- SQL IDE enhancements
+require('user.sql_highlight').setup()
 
 -- Fcitx input method switching (skip if fcitx-remote is not installed)
 if vim.fn.executable('fcitx-remote') == 1 then

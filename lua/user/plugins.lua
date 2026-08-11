@@ -231,6 +231,7 @@ return {
           'lua',
           'python',
           'rust',
+          'sql',
           'toml',
           'tsx',
           'typescript',
