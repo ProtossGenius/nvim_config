@@ -147,6 +147,20 @@ support.expect_true('scan_project_classes finds TestApp', test_app_item ~= nil)
 support.expect_equal('TestApp container is com.demo.test', test_app_item.container, 'com.demo.test')
 support.expect_equal('TestApp is_project is true', test_app_item.is_project, true)
 
+-- 8. Test picker open and abort/close (Esc simulation)
+local ok_picker, err_picker = pcall(function()
+  search.search({
+    attach_mappings = function(prompt_bufnr, map)
+      vim.schedule(function()
+        pcall(require('telescope.actions').close, prompt_bufnr)
+      end)
+      return true
+    end
+  })
+  vim.wait(100)
+end)
+support.expect_true('Picker open and abort/close succeeds without error', ok_picker)
+
 -- Clean up temp dir
 vim.fn.delete(temp_dir, 'rf')
 

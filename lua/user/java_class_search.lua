@@ -542,6 +542,19 @@ function M.search(opts)
   local last_queried_prompt = ''
   local query_timer = nil
 
+  local function cancel_timer()
+    if query_timer then
+      local t = query_timer
+      query_timer = nil
+      pcall(function()
+        if not t:is_closing() then
+          t:stop()
+          t:close()
+        end
+      end)
+    end
+  end
+
   -- Dynamic finder that filters cache instantly and queries jdtls in background
   local finder = finders.new_dynamic({
     fn = function(prompt)
@@ -551,12 +564,9 @@ function M.search(opts)
       -- Debounced background LSP query to enrich cache with new symbols from JARs
       if client and prompt ~= '' and prompt ~= last_queried_prompt then
         last_queried_prompt = prompt
-        if query_timer then
-          query_timer:stop()
-          query_timer:close()
-          query_timer = nil
-        end
+        cancel_timer()
         query_timer = vim.defer_fn(function()
+          query_timer = nil
           pcall(function()
             client:request('workspace/symbol', { query = prompt }, function(err, result)
               if not err and result and #result > 0 then
@@ -613,33 +623,35 @@ function M.search(opts)
 
       -- Function to update grey ghost text in prompt buffer
       local function update_ghost_text()
-        if not vim.api.nvim_buf_is_valid(prompt_bufnr) then
-          return
-        end
-        local lines = vim.api.nvim_buf_get_lines(prompt_bufnr, 0, 1, false)
-        local line_text = lines[1] or ''
-        local prompt_prefix = conf.prompt_prefix or '> '
-        local user_input = line_text
-        if user_input:sub(1, #prompt_prefix) == prompt_prefix then
-          user_input = user_input:sub(#prompt_prefix + 1)
-        end
-        user_input = vim.trim(user_input)
-
-        vim.api.nvim_buf_clear_namespace(prompt_bufnr, M._ns, 0, -1)
-        active_suggestion = nil
-
-        if user_input ~= '' then
-          local suggestion = M.get_prefix_suggestion(user_input)
-          if suggestion and suggestion ~= user_input then
-            active_suggestion = suggestion
-            local hint = '  -> ' .. suggestion .. ' [Tab]'
-            pcall(vim.api.nvim_buf_set_extmark, prompt_bufnr, M._ns, 0, #line_text, {
-              virt_text = { { hint, 'Comment' } },
-              virt_text_pos = 'eol',
-              hl_mode = 'combine',
-            })
+        pcall(function()
+          if not vim.api.nvim_buf_is_valid(prompt_bufnr) then
+            return
           end
-        end
+          local lines = vim.api.nvim_buf_get_lines(prompt_bufnr, 0, 1, false)
+          local line_text = lines[1] or ''
+          local prompt_prefix = conf.prompt_prefix or '> '
+          local user_input = line_text
+          if user_input:sub(1, #prompt_prefix) == prompt_prefix then
+            user_input = user_input:sub(#prompt_prefix + 1)
+          end
+          user_input = vim.trim(user_input)
+
+          vim.api.nvim_buf_clear_namespace(prompt_bufnr, M._ns, 0, -1)
+          active_suggestion = nil
+
+          if user_input ~= '' then
+            local suggestion = M.get_prefix_suggestion(user_input)
+            if suggestion and suggestion ~= user_input then
+              active_suggestion = suggestion
+              local hint = '  -> ' .. suggestion .. ' [Tab]'
+              pcall(vim.api.nvim_buf_set_extmark, prompt_bufnr, M._ns, 0, #line_text, {
+                virt_text = { { hint, 'Comment' } },
+                virt_text_pos = 'eol',
+                hl_mode = 'combine',
+              })
+            end
+          end
+        end)
       end
 
       -- Attach buffer listener for prompt updates
@@ -648,11 +660,7 @@ function M.search(opts)
           vim.schedule(update_ghost_text)
         end,
         on_detach = function()
-          if query_timer then
-            query_timer:stop()
-            query_timer:close()
-            query_timer = nil
-          end
+          cancel_timer()
         end,
       })
 
