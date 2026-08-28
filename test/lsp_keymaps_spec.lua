@@ -46,6 +46,7 @@ local fake_jdtls_client = {
 
 user_lsp.on_attach(fake_jdtls_client, 0)
 support.expect_equal('java override mapping desc', vim.fn.maparg('<leader>ji', 'n', false, true).desc, 'Java: Override/Implement methods')
+support.expect_equal('java find class mapping desc', vim.fn.maparg('<leader>jg', 'n', false, true).desc, 'Java: Find class (project + JAR)')
 
 vim.fn.setpos("'<", { 0, 1, 1, 0 })
 vim.fn.setpos("'>", { 0, 2, 7, 0 })

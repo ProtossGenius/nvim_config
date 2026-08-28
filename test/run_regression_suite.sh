@@ -41,6 +41,7 @@ run_spec "test/java_signature_help_spec.lua"
 run_spec "test/printf_highlight_spec.lua"
 run_spec "test/scratchpad_spec.lua"
 run_spec "test/telescope_path_spec.lua"
+run_spec "test/java_class_search_spec.lua"
 
 run_spec "test/java_file_actions_integration.lua"
 run_spec "test/java_stale_diagnostics_integration.lua"

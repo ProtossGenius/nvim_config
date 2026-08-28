@@ -351,6 +351,7 @@ local function attach_java_keymaps(bufnr)
   buf_map(bufnr, 'n', '<leader>jtr', view_test_report, 'Java: View last test report')
   buf_map(bufnr, 'n', '<leader>jj', change_java_runtime, 'Java: Change runtime')
   buf_map(bufnr, 'n', '<leader>ji', M.override_methods, 'Java: Override/Implement methods')
+  buf_map(bufnr, 'n', '<leader>jg', function() require('user.java_class_search').search() end, 'Java: Find class (project + JAR)')
 end
 
 function M.jdtls_settings()
