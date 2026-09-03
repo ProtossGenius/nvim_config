@@ -95,8 +95,8 @@ return {
     config = function()
       local telescope = require('telescope')
       local builtin = require('telescope.builtin')
+      local telescope_search = require('user.telescope_search')
       local project = require('user.project')
-      local uv = vim.uv or vim.loop
 
       telescope.setup({
         defaults = {
@@ -107,80 +107,10 @@ return {
         }
       })
 
-      local function existing_ignore_files()
-        local files = {}
-        local candidates = {
-          vim.fs.joinpath(vim.fn.stdpath('config'), '.nvimignore'),
-          vim.fs.joinpath(vim.fn.getcwd(), '.nvimignore'),
-        }
-
-        for _, path in ipairs(candidates) do
-          local stat = uv.fs_stat(path)
-          if stat and stat.type == 'file' then
-            table.insert(files, path)
-          end
-        end
-
-        return files
-      end
-
-      local function find_all_files_command()
-        local command = {
-          'rg',
-          '--files',
-          '--hidden',
-          '--follow',
-          '--color',
-          'never',
-          '--no-ignore-vcs',
-          '--no-ignore-parent',
-          '--no-ignore-dot',
-          '--no-ignore-exclude',
-          '--glob',
-          '!.git',
-          '--glob',
-          '!.git/**',
-          '--glob',
-          '!target',
-          '--glob',
-          '!target/**',
-          '--glob',
-          '!*.class',
-        }
-
-        for _, ignore_file in ipairs(existing_ignore_files()) do
-          vim.list_extend(command, { '--ignore-file', ignore_file })
-        end
-
-        return command
-      end
-
-      local function get_search_cwd()
-        return _G.initial_cwd or vim.fn.getcwd()
-      end
-
-      local find_all_files = function()
-        builtin.find_files({
-          find_command = find_all_files_command(),
-          cwd = get_search_cwd(),
-        })
-      end
-
-      local live_grep = function()
-        builtin.live_grep({
-          cwd = get_search_cwd(),
-        })
-      end
-
-      local git_files = function()
-        builtin.git_files({
-          cwd = get_search_cwd(),
-        })
-      end
-
       require('project_nvim').setup({
         detection_methods = { 'pattern' },
         patterns = project.root_markers,
+        exclude_dirs = vim.g.no_auto_index_dirs or {},
         silent_chdir = false,
         -- Disable automatic directory switching to support multi-module projects.
         -- Without this, opening a file in a submodule (e.g. core/) that has its own
@@ -190,12 +120,12 @@ return {
       })
       telescope.load_extension('projects')
 
-      vim.keymap.set('n', '<c-p>', find_all_files, { desc = 'Find files (including ignored)' })
-      vim.keymap.set('n', '<A-f>', live_grep, { desc = 'Live Grep' })
+      vim.keymap.set('n', '<c-p>', telescope_search.find_all_files, { desc = 'Find files (including ignored)' })
+      vim.keymap.set('n', '<A-f>', telescope_search.live_grep, { desc = 'Live Grep' })
       vim.keymap.set('n', '<A-r>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
-      vim.keymap.set('n', '<leader>ff', git_files, { desc = 'Find git files' })
-      vim.keymap.set('n', '<leader>fa', find_all_files, { desc = 'Find files (including ignored)' })
+      vim.keymap.set('n', '<leader>ff', telescope_search.git_files, { desc = 'Find git files' })
+      vim.keymap.set('n', '<leader>fa', telescope_search.find_all_files, { desc = 'Find files (including ignored)' })
     end,
   },
 
@@ -506,6 +436,15 @@ return {
     config = function()
       vim.cmd('let g:dirvish_hide_gitignore = 1')
       vim.cmd('let g:dirvish_hide_netrw = 1')
+      local group = vim.api.nvim_create_augroup('dirvish', { clear = false })
+      vim.api.nvim_clear_autocmds({ group = group, event = 'BufEnter' })
+      vim.api.nvim_create_autocmd('BufEnter', {
+        group = group,
+        pattern = '*',
+        callback = function()
+          require('user.indexing').dirvish_buf_enter()
+        end,
+      })
     end,
   },
 

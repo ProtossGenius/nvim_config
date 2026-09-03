@@ -197,6 +197,9 @@ vim.opt.breakindent = true
 -- Automatically start JDTLS if launched in a Java project with pom.xml at the root
 local function check_java_project_autostart()
   local cwd = vim.fs.normalize(vim.fn.getcwd())
+  if require('user.indexing').is_no_auto_index_dir(cwd) then
+    return
+  end
   local home = os.getenv('HOME') or os.getenv('USERPROFILE')
   if home and cwd == vim.fs.normalize(home) then
     return

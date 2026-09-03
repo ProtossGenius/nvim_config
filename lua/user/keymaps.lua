@@ -127,19 +127,11 @@ keymap('n', '<leader>p', '<cmd>Telescope projects<cr>', { desc = 'Find projects'
 keymap('n', '<leader>ds', '<cmd>Telescope lsp_document_symbols<cr>', { desc = 'Document symbols' })
 keymap('n', '<leader>ts', '<cmd>Telescope tags<cr>', { desc = 'Find tags' })
 leader_map('n', '<leader>fa', function()
-  require('telescope.builtin').find_files({
-    cwd = _G.initial_cwd or vim.fn.getcwd(),
-    hidden = true,
-    no_ignore = true,
-    no_ignore_parent = true,
-    follow = true,
-  })
+  require('user.telescope_search').find_all_files()
 end, 'Find files (including ignored)')
 leader_map('n', '<leader>fb', '<cmd>Telescope buffers<cr>', 'Find buffers')
 leader_map('n', '<leader>fg', function()
-  require('telescope.builtin').live_grep({
-    cwd = _G.initial_cwd or vim.fn.getcwd(),
-  })
+  require('user.telescope_search').live_grep()
 end, 'Live Grep')
 leader_map('n', '<leader>fr', '<cmd>Telescope oldfiles<cr>', 'Find recent files')
 leader_map('n', '<leader>ft', '<cmd>Telescope tags<cr>', 'Find tags')

@@ -7,6 +7,8 @@
 -- 3. Package search priority based on user selection history.
 -- 4. Search history prefix-to-package associations with grey ghost text and Tab auto-completion.
 
+local indexing = require('user.indexing')
+
 local M = {}
 
 -- Nerd Font icons
@@ -301,15 +303,11 @@ function M.add_to_cache(item, save)
   end
 end
 
-local function is_home_directory(path)
+local function is_no_auto_index_directory(path)
   if not path or path == '' then
     return false
   end
-  local home = os.getenv('HOME') or os.getenv('USERPROFILE')
-  if home then
-    return vim.fs.normalize(path) == vim.fs.normalize(home)
-  end
-  return false
+  return indexing.is_no_auto_index_dir(path)
 end
 
 local function scan_java_files(root_dir, max_files, max_depth)
@@ -383,7 +381,7 @@ function M.scan_project_classes(root)
   root = root or _G.initial_cwd or vim.fn.getcwd()
   root = vim.fs.normalize(root)
 
-  if is_home_directory(root) or root == '/' or root == '' then
+  if is_no_auto_index_directory(root) or root == '/' or root == '' then
     return
   end
 

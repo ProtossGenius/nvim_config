@@ -1,4 +1,5 @@
 local uv = vim.uv or vim.loop
+local indexing = require('user.indexing')
 local project = require('user.project')
 
 local M = {}
@@ -22,15 +23,11 @@ local function fs_stat(path)
   return path ~= '' and uv.fs_stat(path) or nil
 end
 
-local function is_home_directory(path)
+local function is_no_auto_index_directory(path)
   if not path or path == '' then
     return false
   end
-  local home = os.getenv('HOME') or os.getenv('USERPROFILE')
-  if home then
-    return vim.fs.normalize(path) == vim.fs.normalize(home)
-  end
-  return false
+  return indexing.is_no_auto_index_dir(path)
 end
 
 local function is_dir(path)
@@ -260,7 +257,7 @@ end
 
 local function find_topmost_java_root(start_dir, boundary)
   local current = vim.fs.normalize(start_dir)
-  if is_home_directory(current) or current == '/' or current == '' then
+  if is_no_auto_index_directory(current) or current == '/' or current == '' then
     return nil
   end
   boundary = vim.fs.normalize(boundary)
@@ -391,7 +388,7 @@ end
 local function scan_for_java_file(dir, current_depth, max_depth)
   current_depth = current_depth or 1
   max_depth = max_depth or 3
-  if current_depth > max_depth or is_home_directory(dir) or dir == '/' or dir == '' then
+  if current_depth > max_depth or is_no_auto_index_directory(dir) or dir == '/' or dir == '' then
     return nil
   end
 
@@ -443,7 +440,7 @@ local function scan_for_java_file(dir, current_depth, max_depth)
 end
 
 local function is_java_project_root(root)
-  if not root or root == '' or is_home_directory(root) then
+  if not root or root == '' or is_no_auto_index_directory(root) then
     return false
   end
   for _, marker in ipairs({
@@ -463,7 +460,7 @@ local function is_java_project_root(root)
 end
 
 local function first_java_file(root)
-  if is_home_directory(root) then
+  if is_no_auto_index_directory(root) then
     return nil
   end
 
