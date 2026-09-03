@@ -146,6 +146,8 @@ leader_map('n', '<leader>ft', '<cmd>Telescope tags<cr>', 'Find tags')
 leader_map('n', '<leader>pp', '<cmd>Telescope projects<cr>', 'Find projects')
 leader_map('n', '<leader>br', file_actions.rename_current_buffer, 'Buffer: Rename file')
 leader_map('n', '<leader>bd', file_actions.delete_current_buffer_file, 'Buffer: Delete file from disk')
+leader_map('n', '<leader>bc', file_actions.clean_deleted_buffers, 'Buffer: Clean deleted file buffers')
+leader_map('n', '<leader>bk', file_actions.close_current_buffer, 'Buffer: Close/delete current buffer')
 
 -- Terminal
 -- Terminal toggle (Alt-t)

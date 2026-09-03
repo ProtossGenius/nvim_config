@@ -23,6 +23,21 @@ support.expect_true('file action delete succeeds', file_actions.delete_path(rena
 support.expect_true('file action deleted file removed from disk', vim.uv.fs_stat(renamed_path) == nil)
 support.expect_true('file action buffer retained after delete', vim.api.nvim_buf_is_valid(renamed_buf))
 support.expect_equal('file action buffer name retained after delete', vim.api.nvim_buf_get_name(renamed_buf), renamed_path)
+
+-- Test clean_deleted_buffers
+local cleaned_bufs = file_actions.clean_deleted_buffers()
+support.expect_true('clean_deleted_buffers removes missing file buffer', #cleaned_bufs >= 1)
+support.expect_true('deleted buffer is now invalid', not vim.api.nvim_buf_is_valid(renamed_buf))
+
+-- Test close_current_buffer
+local test_close_path = vim.fs.normalize(temp_root .. '/to_close.txt')
+vim.fn.writefile({ 'close me' }, test_close_path)
+vim.cmd('edit ' .. vim.fn.fnameescape(test_close_path))
+local to_close_buf = vim.api.nvim_get_current_buf()
+support.expect_true('file to close opened', vim.api.nvim_buf_is_valid(to_close_buf))
+support.expect_true('close_current_buffer succeeds', file_actions.close_current_buffer())
+support.expect_true('closed buffer is invalid', not vim.api.nvim_buf_is_valid(to_close_buf))
+
 support.expect_true('file action create succeeds', file_actions.create_path(created_path))
 support.expect_true('file action created file exists', vim.uv.fs_stat(created_path) ~= nil)
 
@@ -54,6 +69,9 @@ local dirvish_created_lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 support.expect_equal('dirvish create mapping applies template header', dirvish_created_lines[1], '# -*- coding: utf-8 -*-')
 support.expect_equal('dirvish create mapping applies template body', dirvish_created_lines[5], 'def main():')
 support.expect_equal('dirvish create mapping saves template to disk', vim.fn.readfile(created_from_dirvish)[1], '# -*- coding: utf-8 -*-')
+
+support.expect_equal('leader bc mapping desc', vim.fn.maparg('<leader>bc', 'n', false, true).desc, 'Buffer: Clean deleted file buffers')
+support.expect_equal('leader bk mapping desc', vim.fn.maparg('<leader>bk', 'n', false, true).desc, 'Buffer: Close/delete current buffer')
 
 vim.cmd('bdelete!')
 vim.fn.delete(temp_root, 'rf')

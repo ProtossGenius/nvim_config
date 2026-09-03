@@ -440,4 +440,126 @@ function M.delete_current_buffer_file()
   M.delete_path(name)
 end
 
+local function safe_delete_buffer(bufnr, force)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+
+  -- Find alternate buffer or create an empty scratch buffer if this is the only buffer
+  local alt_buf = nil
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if b ~= bufnr and vim.api.nvim_buf_is_valid(b) and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buflisted then
+      alt_buf = b
+      break
+    end
+  end
+
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
+      if alt_buf and vim.api.nvim_buf_is_valid(alt_buf) then
+        vim.api.nvim_win_set_buf(win, alt_buf)
+      else
+        local scratch = vim.api.nvim_create_buf(true, false)
+        vim.api.nvim_win_set_buf(win, scratch)
+      end
+    end
+  end
+
+  local ok, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = force or false })
+  return ok, err
+end
+
+M.safe_delete_buffer = safe_delete_buffer
+
+--- Delete all open buffers whose backing files no longer exist on disk
+function M.clean_deleted_buffers(opts)
+  opts = opts or {}
+  local force = opts.force or false
+  local cleaned = {}
+  local skipped_modified = 0
+
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == '' then
+      local name = vim.api.nvim_buf_get_name(bufnr)
+      if name ~= '' and not name:match('^%a+://') then
+        local norm = normalize_path(name)
+        if norm and not fs_stat(norm) then
+          if vim.bo[bufnr].modified and not force then
+            skipped_modified = skipped_modified + 1
+          else
+            local ok = safe_delete_buffer(bufnr, force)
+            if ok then
+              table.insert(cleaned, norm)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  if not opts.silent then
+    if #cleaned > 0 then
+      local msg = string.format('Cleaned %d buffer(s) whose files were deleted from disk.', #cleaned)
+      if skipped_modified > 0 then
+        msg = msg .. string.format(' (Skipped %d modified buffer(s); use force to delete)', skipped_modified)
+      end
+      vim.notify(msg, vim.log.levels.INFO)
+    elseif skipped_modified > 0 then
+      vim.notify(
+        string.format('Found %d buffer(s) with missing files, but modified. Use bang (!) to force clean.', skipped_modified),
+        vim.log.levels.WARN
+      )
+    else
+      vim.notify('No deleted file buffers found.', vim.log.levels.INFO)
+    end
+  end
+
+  return cleaned
+end
+
+--- Safely close/delete the current or specified buffer without closing split windows
+function M.close_current_buffer(opts)
+  opts = opts or {}
+  local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  local force = opts.force or false
+
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return false
+  end
+
+  if vim.bo[bufnr].modified and not force then
+    vim.notify('Buffer has unwritten changes. Use force to close.', vim.log.levels.WARN)
+    return false
+  end
+
+  local ok, err = safe_delete_buffer(bufnr, force)
+  if not ok and err then
+    vim.notify('Failed to close buffer: ' .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+  return true
+end
+
+-- Register user commands
+vim.api.nvim_create_user_command('BufferCleanDeleted', function(cmd_opts)
+  M.clean_deleted_buffers({ force = cmd_opts.bang })
+end, {
+  bang = true,
+  desc = 'Delete buffers whose backing files no longer exist on disk',
+})
+
+vim.api.nvim_create_user_command('BufferClean', function(cmd_opts)
+  M.clean_deleted_buffers({ force = cmd_opts.bang })
+end, {
+  bang = true,
+  desc = 'Delete buffers whose backing files no longer exist on disk',
+})
+
+vim.api.nvim_create_user_command('BufferClose', function(cmd_opts)
+  M.close_current_buffer({ force = cmd_opts.bang })
+end, {
+  bang = true,
+  desc = 'Close current buffer without closing window',
+})
+
 return M

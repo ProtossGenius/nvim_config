@@ -22,6 +22,17 @@ local function fs_stat(path)
   return path ~= '' and uv.fs_stat(path) or nil
 end
 
+local function is_home_directory(path)
+  if not path or path == '' then
+    return false
+  end
+  local home = os.getenv('HOME') or os.getenv('USERPROFILE')
+  if home then
+    return vim.fs.normalize(path) == vim.fs.normalize(home)
+  end
+  return false
+end
+
 local function is_dir(path)
   local stat = fs_stat(path)
   return stat and stat.type == 'directory' or false
@@ -249,6 +260,9 @@ end
 
 local function find_topmost_java_root(start_dir, boundary)
   local current = vim.fs.normalize(start_dir)
+  if is_home_directory(current) or current == '/' or current == '' then
+    return nil
+  end
   boundary = vim.fs.normalize(boundary)
 
   if current:sub(1, #boundary) ~= boundary then
@@ -374,21 +388,10 @@ function M.patch_jdtls_workspace_path()
   lsp_utils._user_pid_workspace_patch = true
 end
 
-local function is_home_directory(path)
-  if not path or path == '' then
-    return false
-  end
-  local home = os.getenv('HOME') or os.getenv('USERPROFILE')
-  if home then
-    return vim.fs.normalize(path) == vim.fs.normalize(home)
-  end
-  return false
-end
-
 local function scan_for_java_file(dir, current_depth, max_depth)
   current_depth = current_depth or 1
   max_depth = max_depth or 3
-  if current_depth > max_depth then
+  if current_depth > max_depth or is_home_directory(dir) or dir == '/' or dir == '' then
     return nil
   end
 
