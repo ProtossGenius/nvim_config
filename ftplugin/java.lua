@@ -3,9 +3,16 @@
 local home = os.getenv("HOME")
 local jdtls = require("jdtls")
 
+local abuf = tonumber(vim.fn.expand("<abuf>"))
+local bufnr = (abuf and abuf > 0 and vim.api.nvim_buf_is_valid(abuf)) and abuf or vim.api.nvim_get_current_buf()
+local bufname = vim.api.nvim_buf_get_name(bufnr)
+if bufname == "" then
+  return
+end
+
 -- 1. Detect root directory using the custom project_root calculation
 local user_java = require("user.java")
-local root_dir = user_java._test.project_root(0)
+local root_dir = user_java._test.project_root(bufnr)
 
 if not root_dir or root_dir == "" then
   return
@@ -30,13 +37,17 @@ local mason_path = vim.fn.stdpath("data") .. "/mason/packages"
 local debug_bundle_path = mason_path .. "/java-debug-adapter/extension/server/com.microsoft.java.debug.plugin-*.jar"
 local debug_bundles = vim.fn.glob(debug_bundle_path, true)
 if debug_bundles ~= "" then
-  table.insert(bundles, debug_bundles)
+  for _, bundle in ipairs(vim.split(debug_bundles, "\n")) do
+    if bundle ~= "" then
+      table.insert(bundles, bundle)
+    end
+  end
 else
   vim.notify("Java Debug Adapter bundle not found. Run :MasonInstall java-debug-adapter to enable debugging.", vim.log.levels.INFO)
 end
 
 -- Path for java-test (optional helper)
-local test_bundle_path = mason_path .. "/java-test/extension/server/com.microsoft.java.test.plugin-*.jar"
+local test_bundle_path = mason_path .. "/java-test/extension/server/*.jar"
 local test_bundles = vim.fn.glob(test_bundle_path, true)
 if test_bundles ~= "" then
   for _, bundle in ipairs(vim.split(test_bundles, "\n")) do

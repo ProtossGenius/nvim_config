@@ -49,7 +49,11 @@ local function append_to_file(path, line)
     flush_timer:start(100, 0, vim.schedule_wrap(function()
       flush_buffer()
       if flush_timer then
-        flush_timer:close()
+        pcall(function()
+          if not flush_timer:is_closing() then
+            flush_timer:close()
+          end
+        end)
         flush_timer = nil
       end
     end))
