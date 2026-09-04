@@ -45,26 +45,9 @@ opt.whichwrap:append('<,>,[,],h,l')
 -- Performance
 opt.updatetime = 250 -- Faster updates (e.g., for git signs)
 opt.undofile = true -- Persistent undo
-opt.wildignore:append({
-  '*/.cache/*',
-  '*/.cargo/*',
-  '*/.git/*',
-  '*/.gradle/*',
-  '*/.local/share/*',
-  '*/.m2/*',
-  '*/node_modules/*',
-  '*/target/*',
-})
 
 -- Spring Boot LSP tools toggle (disabled by default to avoid slow startup & unnecessary network requests)
 vim.g.enable_spring_boot_tools = false
 
 -- Toggle keys for JDTLS multi-select floating UI (Override/Implements selection)
 vim.g.select_many_toggle_keys = { "-", "<Space>" }
-
--- Directories where startup/project helpers must not build indexes or directory listings.
--- Search mappings such as <C-p> and <A-f> still work in these directories, but run
--- prompt-driven realtime ripgrep jobs instead of enumerating everything up front.
-vim.g.no_auto_index_dirs = { vim.fn.expand('~') }
-vim.g.no_auto_index_recursive_dirs = {}
-vim.g.no_auto_index_min_search_chars = 2

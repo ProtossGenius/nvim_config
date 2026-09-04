@@ -1,5 +1,4 @@
 local uv = vim.uv or vim.loop
-local indexing = require('user.indexing')
 local project = require('user.project')
 
 local M = {}
@@ -21,13 +20,6 @@ local state
 
 local function fs_stat(path)
   return path ~= '' and uv.fs_stat(path) or nil
-end
-
-local function is_no_auto_index_directory(path)
-  if not path or path == '' then
-    return false
-  end
-  return indexing.is_no_auto_index_dir(path)
 end
 
 local function is_dir(path)
@@ -257,9 +249,6 @@ end
 
 local function find_topmost_java_root(start_dir, boundary)
   local current = vim.fs.normalize(start_dir)
-  if is_no_auto_index_directory(current) or current == '/' or current == '' then
-    return nil
-  end
   boundary = vim.fs.normalize(boundary)
 
   if current:sub(1, #boundary) ~= boundary then
@@ -388,7 +377,7 @@ end
 local function scan_for_java_file(dir, current_depth, max_depth)
   current_depth = current_depth or 1
   max_depth = max_depth or 3
-  if current_depth > max_depth or is_no_auto_index_directory(dir) or dir == '/' or dir == '' then
+  if current_depth > max_depth then
     return nil
   end
 
@@ -440,7 +429,7 @@ local function scan_for_java_file(dir, current_depth, max_depth)
 end
 
 local function is_java_project_root(root)
-  if not root or root == '' or is_no_auto_index_directory(root) then
+  if not root or root == '' then
     return false
   end
   for _, marker in ipairs({
@@ -460,10 +449,6 @@ local function is_java_project_root(root)
 end
 
 local function first_java_file(root)
-  if is_no_auto_index_directory(root) then
-    return nil
-  end
-
   for _, candidate_root in ipairs({
     vim.fs.joinpath(root, 'src', 'main', 'java'),
     vim.fs.joinpath(root, 'src', 'test', 'java'),
@@ -786,7 +771,33 @@ function M.is_mapper_buffer(bufnr)
   return require('mybatis-xml.jump.mapper_pair').is_mapper_buffer(bufnr)
 end
 
+local function is_potential_mapper_buffer(bufnr)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or vim.bo[bufnr].buftype ~= '' then
+    return false
+  end
+
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  if name == '' then
+    return false
+  end
+
+  local basename = vim.fn.fnamemodify(name, ':t')
+  local filetype = vim.bo[bufnr].filetype
+  if filetype == 'java' then
+    return basename:match('Mapper%.java$') ~= nil
+  end
+  if filetype == 'xml' then
+    return basename:match('%.xml$') ~= nil
+  end
+
+  return false
+end
+
 function M.attach_mapper_keymaps(bufnr)
+  if not is_potential_mapper_buffer(bufnr) then
+    return
+  end
+
   require('mybatis-xml.jump.mapper_pair').attach_mapper_keymaps(bufnr)
 end
 

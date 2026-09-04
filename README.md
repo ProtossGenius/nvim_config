@@ -57,17 +57,9 @@
 - **优化**：在 `options.lua` 中默认配置了 `vim.g.enable_spring_boot_tools = false`。这将在保证标准 Java 特性（定义跳转、自动补全、Lombok 等）完整可用的前提下，**跳过**请求 `spring.io` 的过程，大幅提升打开 Java 时的 LSP 启动速度。
 - **手动开启**：如果需要 Spring 相关的属性/注解高级补全，可以在 `options.lua` 中将该变量改为 `true`。
 
-### 3. 大目录启动与 Telescope 实时搜索
-- **快捷键**：`<C-p>` / `SPC f a` 查找文件，`<A-f>` / `SPC f g` 全局 grep。
-- **优化**：`vim.g.no_auto_index_dirs` 默认包含家目录，不会在 `~` 启动 Neovim 时自动展开 Dirvish 列表、触发 Java 项目扫描或提前枚举全部文件。
-- **实时搜索**：在这些目录里按 `<C-p>` 时，不会先列出所有文件；需要先输入至少 `vim.g.no_auto_index_min_search_chars` 个字符（默认 2），再按输入内容实时启动 `rg --files` 搜索。`<A-f>` 同样按输入内容实时 grep。
-- **配置**：可在 `options.lua` 中调整：
-  ```lua
-  vim.g.no_auto_index_dirs = { vim.fn.expand('~') }       -- 仅目录本身
-  vim.g.no_auto_index_recursive_dirs = { '~/Downloads' } -- 目录及其子目录
-  vim.g.no_auto_index_min_search_chars = 2
-  vim.g.no_auto_index_ignore_globs = { '!.git/**', '!.cache/**', '!node_modules/**' }
-  ```
+### 3. Telescope 搜索文件排除二进制 class
+- **快捷键**：`<C-p>`
+- **优化**：在 Telescope 搜索文件的参数中，显式加入了排除 glob (`!target`, `!target/**`, `!*.class`)。这可确保在 LSP 编译项目并生成 `.class` 字节码文件到 `target` 目录后，搜索列表中不会被大量编译产生的垃圾文件所充斥。
 
 ### 4. Dirvish 列表页实用工具与快捷键
 使用 `-` 键进入目录列表（Dirvish 文件列表页）后，新增了以下几个高效率本地命令：
@@ -87,8 +79,8 @@
 ### 6. 当前文件 buffer 的快捷编辑
 - **重命名 (`SPC b r`)**：对当前打开文件执行重命名；若是 Java 文件，会优先通过 LSP/JDTLS 做安全重构，而不是只改磁盘文件名。
 - **删除 (`SPC b d`)**：删除当前打开文件对应的磁盘文件，但保留当前 Vim buffer，便于继续查看、复制或手动另存。
-- **手动清理已失效 buffer (`SPC b c` 或 `:BufferCleanDeleted`)**：批量删除“文件已从磁盘消失”的 buffer；不会自动清理，避免误删尚需查看/另存的内容。若 buffer 有未保存修改，可用 `:BufferCleanDeleted!` 强制清理。
-- **仅关闭当前 buffer (`SPC b k` 或 `:BufferClose`)**：删除当前 buffer 但保留窗口布局；有未保存修改时需用 `:BufferClose!`。
+- **手动清理失效 buffer (`SPC b c` / `:BufferCleanDeleted`)**：只在手动触发时批量清理“磁盘文件已不存在”的 buffer；带 `!` 可强制清理仍有未保存修改的 buffer。
+- **关闭当前 buffer (`SPC b k` / `:BufferClose`)**：删除当前 buffer 但保留窗口布局；带 `!` 可强制关闭未保存修改。
 
 ### 7. 跨语言格式串占位符联动高亮
 - **覆盖语言**：`c` / `cpp` / `java` / `lua` / `go` / `typescript` / `rust` / `python`。

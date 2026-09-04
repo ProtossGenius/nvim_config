@@ -143,8 +143,6 @@
 | `SPC f h` | help tags | 原映射保留 |
 | `SPC p p` | 项目列表 | `<leader>p` |
 
-`vim.g.no_auto_index_dirs` 默认包含家目录，因此在 `~` 中启动 Neovim 时不会自动展开目录列表或提前枚举索引。此类目录仍可用 `<C-p>` / `SPC f a` 和 `<A-f>` / `SPC f g` 搜索，但会等输入至少 `vim.g.no_auto_index_min_search_chars` 个字符后按提示实时运行 ripgrep。
-
 Buffer 清理保持手动触发：`SPC b c` / `:BufferCleanDeleted` 清理文件已从磁盘删除的 buffer，`SPC b k` / `:BufferClose` 仅关闭当前 buffer；带 `!` 可强制处理有未保存修改的 buffer。
 
 ## 4.4 窗口 / 诊断 / 构建 / 终端

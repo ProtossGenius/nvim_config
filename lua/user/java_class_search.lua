@@ -7,8 +7,6 @@
 -- 3. Package search priority based on user selection history.
 -- 4. Search history prefix-to-package associations with grey ghost text and Tab auto-completion.
 
-local indexing = require('user.indexing')
-
 local M = {}
 
 -- Nerd Font icons
@@ -303,87 +301,10 @@ function M.add_to_cache(item, save)
   end
 end
 
-local function is_no_auto_index_directory(path)
-  if not path or path == '' then
-    return false
-  end
-  return indexing.is_no_auto_index_dir(path)
-end
-
-local function scan_java_files(root_dir, max_files, max_depth)
-  max_files = max_files or 2000
-  max_depth = max_depth or 8
-  local results = {}
-  local uv = vim.uv or vim.loop
-  local ignore_dirs = {
-    ['.git'] = true,
-    ['node_modules'] = true,
-    ['build'] = true,
-    ['target'] = true,
-    ['.gradle'] = true,
-    ['.idea'] = true,
-    ['.settings'] = true,
-    ['bin'] = true,
-    ['.local'] = true,
-    ['.cache'] = true,
-    ['.m2'] = true,
-    ['dist'] = true,
-    ['out'] = true,
-    ['.cargo'] = true,
-    ['.rustup'] = true,
-  }
-
-  local function walk(dir, depth)
-    if depth > max_depth or #results >= max_files then
-      return
-    end
-
-    local handle = uv.fs_scandir(dir)
-    if not handle then
-      return
-    end
-
-    local subdirs = {}
-    while true do
-      local name, type = uv.fs_scandir_next(handle)
-      if not name then
-        break
-      end
-
-      if type == 'directory' then
-        if not ignore_dirs[name] and not name:match('^%.') then
-          table.insert(subdirs, vim.fs.joinpath(dir, name))
-        end
-      elseif type == 'file' or type == 'link' then
-        if name:match('%.java$') then
-          table.insert(results, vim.fs.joinpath(dir, name))
-          if #results >= max_files then
-            break
-          end
-        end
-      end
-    end
-
-    for _, subdir in ipairs(subdirs) do
-      if #results >= max_files then
-        break
-      end
-      walk(subdir, depth + 1)
-    end
-  end
-
-  walk(root_dir, 1)
-  return results
-end
-
 --- Fast local scan of project `.java` files
 function M.scan_project_classes(root)
   root = root or _G.initial_cwd or vim.fn.getcwd()
   root = vim.fs.normalize(root)
-
-  if is_no_auto_index_directory(root) or root == '/' or root == '' then
-    return
-  end
 
   local function read_package(filepath)
     local f = io.open(filepath, 'r')
@@ -406,7 +327,13 @@ function M.scan_project_classes(root)
     return nil
   end
 
-  local java_files = scan_java_files(root, 2000, 8)
+  local java_files = vim.fs.find(function(name, path)
+    return name:match('%.java$') ~= nil
+  end, {
+    path = root,
+    type = 'file',
+    limit = 2000,
+  })
 
   for _, filepath in ipairs(java_files) do
     local filename = vim.fn.fnamemodify(filepath, ':t:r')

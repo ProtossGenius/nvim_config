@@ -196,24 +196,10 @@ vim.opt.breakindent = true
 
 -- Automatically start JDTLS if launched in a Java project with pom.xml at the root
 local function check_java_project_autostart()
-  local cwd = vim.fs.normalize(vim.fn.getcwd())
-  if require('user.indexing').is_no_auto_index_dir(cwd) then
-    return
-  end
-  local home = os.getenv('HOME') or os.getenv('USERPROFILE')
-  if home and cwd == vim.fs.normalize(home) then
-    return
-  end
-  if cwd == '/' or cwd == '' then
-    return
-  end
   local root_markers = { ".root", ".project", ".git", "pom.xml" }
-  local matches = vim.fs.find(root_markers, { upward = true, path = cwd, stop = home })
+  local matches = vim.fs.find(root_markers, { upward = true, path = vim.fn.getcwd() })
   if #matches > 0 then
     local root_dir = vim.fs.dirname(matches[1])
-    if home and vim.fs.normalize(root_dir) == vim.fs.normalize(home) then
-      return
-    end
     local pom_path = vim.fs.joinpath(root_dir, "pom.xml")
     if vim.fn.filereadable(pom_path) == 1 then
       -- Use a system temporary path so we NEVER pollute the workspace
@@ -227,4 +213,4 @@ local function check_java_project_autostart()
   end
 end
 
-vim.schedule(check_java_project_autostart)
+check_java_project_autostart()
