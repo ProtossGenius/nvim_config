@@ -46,5 +46,6 @@ run_spec "test/telescope_find_files_spec.lua"
 run_spec "test/java_class_search_spec.lua"
 
 run_spec "test/java_file_actions_integration.lua"
+run_spec "test/java_elasticsearch_completion_integration.lua"
 run_spec "test/java_stale_diagnostics_integration.lua"
 run_spec "test/java_override_methods_integration.lua"

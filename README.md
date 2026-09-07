@@ -140,7 +140,8 @@
 - Java Spring demo 上的 DAP 命令/动作集成测试（launch 选择、`step_project`、`next`、`repeat_last_action`）；
 - DAP 面板 / 自定义命令 / C++ 进程选择测试；
 - 跨语言格式串占位符高亮测试；
-- `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试。
+- `~/workspace/test-java` 上的 Java LSP 文件重命名集成测试；
+- Java Spring demo 上的 Elasticsearch Java client 补全集成测试。
 
 ## Java 示例项目
 
