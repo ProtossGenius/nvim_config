@@ -356,7 +356,15 @@ return {
       end)
 
       -- Let lsp-zero manage mason and server setup
-      require('mason').setup({})
+      -- The custom "lua:" registry is listed first so its `jdtls` spec
+      -- (a build with the nested-lambda completion fix) shadows the
+      -- upstream mason-registry `jdtls` package definition.
+      require('mason').setup({
+        registries = {
+          'lua:user.mason_registry_jdtls_fix',
+          'github:mason-org/mason-registry',
+        },
+      })
 
       -- Automatically install DAP/non-LSP packages via Mason registry if missing
       vim.schedule(function()
