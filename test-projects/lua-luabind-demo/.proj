@@ -1,0 +1,3 @@
+[project]
+name = "lua-luabind-demo"
+version = "1.0.0"

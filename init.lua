@@ -33,6 +33,7 @@ vim.opt.rtp:prepend(lazypath)
 -- Load user configurations
 require('user.options')
 require('user.keymaps')
+require('user.luabind').setup()
 
 -- Load plugins
 require('lazy').setup('user.plugins', {

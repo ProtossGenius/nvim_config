@@ -1,0 +1,5 @@
+/**
+ * Set character movement speed factor.
+ * @param speed Speed multiplier
+ */
+void set_speed(float speed);

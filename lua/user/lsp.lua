@@ -12,6 +12,15 @@ vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, conf
     -- Suppress all signatureHelp errors to avoid annoying popups/messages
     return
   end
+  if not result or not result.signatures or #result.signatures == 0 then
+    local ok_luabind, luabind = pcall(require, 'user.luabind')
+    if ok_luabind then
+      local luabind_res = luabind.get_signature_help(ctx and ctx.bufnr or 0)
+      if luabind_res then
+        result = luabind_res
+      end
+    end
+  end
   if original_sig_help_handler then
     original_sig_help_handler(err, result, ctx, config)
   else
@@ -561,9 +570,46 @@ function M.on_attach(client, bufnr)
     attach_java_keymaps(bufnr)
   end
 
+  if client.name == 'lua_ls' then
+    require('user.luabind').attach_to_buffer(bufnr)
+  end
+
   if ok_user_java then
     user_java.attach_mapper_keymaps(bufnr)
   end
+end
+
+function M.lua_ls_config(capabilities)
+  local luabind = require('user.luabind')
+  return {
+    capabilities = capabilities,
+    settings = {
+      Lua = {
+        runtime = {
+          version = 'LuaJIT',
+        },
+        diagnostics = {
+          globals = { 'vim' },
+        },
+        workspace = {
+          checkThirdParty = false,
+          library = {
+            vim.env.VIMRUNTIME,
+          },
+        },
+        telemetry = {
+          enable = false,
+        },
+      },
+    },
+    on_attach = function(client, bufnr)
+      M.on_attach(client, bufnr)
+      luabind.attach_to_buffer(bufnr)
+    end,
+    on_new_config = function(new_config, new_root_dir)
+      luabind.setup_lua_ls_workspace(new_config, new_root_dir)
+    end,
+  }
 end
 
 return M

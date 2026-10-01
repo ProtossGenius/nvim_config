@@ -258,6 +258,24 @@ function M.jump_reference(text, opts)
   opts = opts or {}
   local ref = type(text) == 'table' and text or M.parse_reference(text)
   if not ref then
+    local ok_luabind, luabind = pcall(require, 'user.luabind')
+    local root = opts.path or project.path_from_buf(0)
+    if ok_luabind and luabind.has_luabind(root) then
+      local clean = vim.trim(text):gsub('#', '::'):gsub('%.', '::'):gsub(':', '::')
+      local cls, mth
+      if clean:find('::') then
+        cls, mth = clean:match('^([%w_]+)::([%w_]+)$')
+      else
+        mth = clean:match('^([%w_]+)$')
+      end
+      if mth then
+        local matches = luabind.find_methods(mth, cls, root)
+        if matches and #matches > 0 then
+          return open_at(matches[1].file, matches[1].line, matches[1].col, opts.open_cmd)
+        end
+      end
+    end
+
     return false, 'Could not parse an exact reference from: ' .. tostring(text)
   end
 
@@ -280,9 +298,22 @@ function M.jump_reference(text, opts)
   if ref.kind == 'java-reference' then
     local path, err = resolve_java_reference(ref, opts)
     if not path then
+      local ok_luabind, luabind = pcall(require, 'user.luabind')
+      local root = opts.path or project.path_from_buf(0)
+      if ok_luabind and luabind.has_luabind(root) then
+        local matches = luabind.find_methods(ref.member_name, ref.class_name, root)
+        if matches and #matches > 0 then
+          return open_at(matches[1].file, matches[1].line, matches[1].col, opts.open_cmd)
+        end
+      end
       return false, err
     end
     return open_at(path, find_member_line(path, ref.member_name), 1, opts.open_cmd)
+  end
+
+  if ref.kind == 'luabind' then
+    local method = ref.method
+    return open_at(method.file, method.line, method.col, opts.open_cmd)
   end
 
   return false, 'Unsupported exact reference kind: ' .. tostring(ref.kind)
@@ -335,6 +366,14 @@ function M.jump_current_line()
   local ok, err = M.jump_reference(line, { path = project.path_from_buf(0) })
   if ok then
     return
+  end
+
+  local ok_luabind, luabind = pcall(require, 'user.luabind')
+  if ok_luabind and luabind.has_luabind(0) then
+    local jumped = luabind.jump_to_definition({ bufnr = 0 })
+    if jumped then
+      return
+    end
   end
 
   local keys = vim.api.nvim_replace_termcodes('gF', true, false, true)

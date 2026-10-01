@@ -387,6 +387,7 @@ return {
           'gopls',
           'jdtls',
           'rust_analyzer',
+          'lua_ls',
         },
         handlers = {
           lsp.default_setup,
@@ -407,6 +408,10 @@ return {
               },
             })
           end,
+          lua_ls = function()
+            local user_lsp = require('user.lsp')
+            require('lspconfig').lua_ls.setup(user_lsp.lua_ls_config(capabilities))
+          end,
         },
       })
 
@@ -414,6 +419,9 @@ return {
       if vim.lsp.enable then
         vim.lsp.enable('jdtls', false)
       end
+
+      -- Register luabind cmp source
+      require('user.luabind').register_cmp_source()
 
       -- Setup completion
       local cmp = require('cmp')
@@ -430,8 +438,13 @@ return {
           end
           return not (vim.fn.reg_recording() ~= '' or vim.fn.reg_executing() ~= '')
         end,
+        window = {
+          completion = cmp.config.window.bordered(),
+          documentation = cmp.config.window.bordered(),
+        },
         sources = cmp.config.sources({
           { name = 'nvim_lsp' },
+          { name = 'luabind' },
           { name = 'luasnip' },
         }, {
           {

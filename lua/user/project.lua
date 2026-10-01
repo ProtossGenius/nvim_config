@@ -3,6 +3,7 @@ local M = {}
 M.root_markers = {
   '.root',
   '.git',
+  '.proj',
   'mvnw',
   'gradlew',
   'pom.xml',
@@ -46,8 +47,8 @@ function M.root(path_or_bufnr)
 
   local base_path = start_path or vim.fn.getcwd()
 
-  -- Prioritize .git and .root markers to find the true project root in monorepos/submodules
-  local git_root = vim.fs.root(base_path, { '.git', '.root' })
+  -- Prioritize .root, .proj, and .git markers to find the true project root in monorepos/submodules
+  local git_root = vim.fs.root(base_path, { '.root', '.proj', '.git' })
   if git_root then
     return git_root
   end
