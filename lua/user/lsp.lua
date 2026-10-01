@@ -24,6 +24,12 @@ vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, conf
   if original_sig_help_handler then
     original_sig_help_handler(err, result, ctx, config)
   else
+    if not result or not result.signatures or #result.signatures == 0 then
+      if config and config.silent == false then
+        vim.notify('No signature help available')
+      end
+      return
+    end
     vim.lsp.with(vim.lsp.handlers.signature_help, {
       border = 'rounded',
     })(err, result, ctx, config)

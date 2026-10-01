@@ -85,6 +85,40 @@ local function patch_position_params_default_encoding()
   end
 end
 
+local function patch_treesitter_get_node_text()
+  if not (vim.treesitter and type(vim.treesitter.get_node_text) == 'function') then
+    return
+  end
+
+  local original_get_node_text = vim.treesitter.get_node_text
+  vim.treesitter.get_node_text = function(node, source, opts)
+    while type(node) == 'table' and (not node.range) and node[1] do
+      node = node[1]
+    end
+    if type(node) == 'table' and (not node.range) then
+      return ''
+    end
+    return original_get_node_text(node, source, opts)
+  end
+end
+
+local function patch_treesitter_get_range()
+  if not (vim.treesitter and type(vim.treesitter.get_range) == 'function') then
+    return
+  end
+
+  local original_get_range = vim.treesitter.get_range
+  vim.treesitter.get_range = function(node, source, metadata)
+    while type(node) == 'table' and (not node.range) and node[1] do
+      node = node[1]
+    end
+    if type(node) == 'table' and (not node.range) then
+      return { 0, 0, 0, 0 }
+    end
+    return original_get_range(node, source, metadata)
+  end
+end
+
 function M.setup()
   if not vim.tbl_islist and vim.islist then
     vim.tbl_islist = vim.islist
@@ -93,6 +127,8 @@ function M.setup()
   if vim.fn.has('nvim-0.12') == 1 then
     patch_helptags_without_vimdoc_parser()
     patch_position_params_default_encoding()
+    patch_treesitter_get_node_text()
+    patch_treesitter_get_range()
   end
 end
 

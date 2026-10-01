@@ -905,6 +905,9 @@ function M.close_call_hint()
   if active_hint_win and vim.api.nvim_win_is_valid(active_hint_win) then
     pcall(vim.api.nvim_win_close, active_hint_win, true)
   end
+  if active_hint_buf and vim.api.nvim_buf_is_valid(active_hint_buf) then
+    pcall(vim.api.nvim_buf_delete, active_hint_buf, { force = true })
+  end
   active_hint_win = nil
   active_hint_buf = nil
 end
@@ -960,7 +963,7 @@ function M.show_call_hint(info, bufnr)
   }
 
   local ok, win = pcall(vim.api.nvim_open_win, buf, false, win_opts)
-  if ok then
+  if ok and win and vim.api.nvim_win_is_valid(win) then
     active_hint_win = win
     active_hint_buf = buf
   end
@@ -974,21 +977,34 @@ function M.update_insert_hint(bufnr)
     return
   end
 
-  -- Don't show call hint if cmp menu is visible
-  local ok_cmp, cmp = pcall(require, 'cmp')
-  if ok_cmp and cmp.visible() then
-    M.close_call_hint()
-    return
-  end
-
   local root = M.get_project_root(bufnr)
   if not M.has_luabind(root) then
     M.close_call_hint()
     return
   end
 
-  local line = vim.api.nvim_get_current_line()
-  local col = vim.api.nvim_win_get_cursor(0)[2]
+  -- Don't show call hint if cmp menu is visible or popup menu is active
+  if vim.fn.pumvisible() == 1 then
+    M.close_call_hint()
+    return
+  end
+  local ok_cmp, cmp = pcall(require, 'cmp')
+  if ok_cmp and cmp.core and cmp.core.view and cmp.core.view:visible() then
+    M.close_call_hint()
+    return
+  end
+
+  local ok_line, line = pcall(vim.api.nvim_get_current_line)
+  if not ok_line or not line then
+    M.close_call_hint()
+    return
+  end
+  local ok_cur, cur = pcall(vim.api.nvim_win_get_cursor, 0)
+  if not ok_cur or not cur then
+    M.close_call_hint()
+    return
+  end
+  local col = cur[2]
   local text_before = line:sub(1, col)
 
   local ctx = M.parse_call_context(text_before)
@@ -1012,13 +1028,24 @@ end
 -- LSP SignatureHelp result for luabind
 function M.get_signature_help(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return nil
+  end
+
   local root = M.get_project_root(bufnr)
   if not M.has_luabind(root) then
     return nil
   end
 
-  local line = vim.api.nvim_get_current_line()
-  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local ok_line, line = pcall(vim.api.nvim_get_current_line)
+  if not ok_line or not line then
+    return nil
+  end
+  local ok_cur, cur = pcall(vim.api.nvim_win_get_cursor, 0)
+  if not ok_cur or not cur then
+    return nil
+  end
+  local col = cur[2]
   local text_before = line:sub(1, col)
 
   local ctx = M.parse_call_context(text_before)

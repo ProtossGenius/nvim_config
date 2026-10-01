@@ -4,8 +4,19 @@ local support = dofile(vim.fn.stdpath('config') .. '/test/spec_support.lua')
 -- This validates the fix for the bug where List.of().getLast() error would disappear
 -- because JDTLS lacked a JavaSE-17 runtime and fell back to the JDK 21 APIs.
 
--- Simulate the ftplugin's runtime scanner logic with the updated scan globs
+-- Ensure ~/.jdks fixture exists if not present in the environment
 local home = os.getenv('HOME')
+local mock_dir = home .. '/.jdks/corretto-17.0.10'
+local created_mock = false
+if vim.fn.isdirectory(mock_dir) == 0 then
+  vim.fn.mkdir(mock_dir .. '/bin', 'p')
+  vim.fn.writefile({ '#!/bin/sh' }, mock_dir .. '/bin/java')
+  vim.fn.setfperm(mock_dir .. '/bin/java', 'rwxr-xr-x')
+  vim.fn.writefile({ 'JAVA_VERSION="17.0.10"' }, mock_dir .. '/release')
+  created_mock = true
+end
+
+-- Simulate the ftplugin's runtime scanner logic with the updated scan globs
 local seen_runtimes = {}
 local runtimes = {}
 
@@ -116,5 +127,9 @@ for _, r in ipairs(config_runtimes) do
 end
 
 support.expect_true('lua/user/java.lua also detects JavaSE-17', user_java_has_17)
+
+if created_mock then
+  vim.fn.delete(home .. '/.jdks', 'rf')
+end
 
 support.flush()
