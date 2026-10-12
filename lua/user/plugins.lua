@@ -378,6 +378,21 @@ return {
             end
           end
         end
+
+        -- The custom jdtls spec pins its version in `source.id`. mason only
+        -- installs missing packages, so reinstall when the installed version
+        -- differs from the spec (e.g. after we publish a new build).
+        if registry.has_package('jdtls') then
+          local p = registry.get_package('jdtls')
+          if p:is_installed() and not p:is_installing() then
+            local ok, installed = pcall(p.get_installed_version, p)
+            local latest_ok, latest = pcall(p.get_latest_version, p)
+            if latest_ok and (not ok or installed ~= latest) then
+              vim.notify('Updating jdtls to ' .. latest, vim.log.levels.INFO)
+              p:install({ force = true })
+            end
+          end
+        end
       end)
 
       require('mason-lspconfig').setup({

@@ -28,7 +28,7 @@ return {
   languages = { "Java" },
   categories = { "LSP" },
   source = {
-    id = "pkg:generic/ProtossGenius/eclipse.jdt.ls@nested-lambda-fix",
+    id = "pkg:generic/ProtossGenius/eclipse.jdt.ls@nested-lambda-fix-jdk21",
     download = {
       {
         target = { "darwin_x64", "darwin_arm64" },
