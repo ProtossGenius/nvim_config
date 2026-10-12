@@ -2,7 +2,7 @@
 -- distribution that fixes 2-3 level nested lambda completion (see
 -- eclipse.jdt.core@4969cad78b8f796479a56a9be90e1ed4b00fafee).
 --
--- The archive is hosted on the `dist/jdtls-nested-lambda-fix` branch of
+-- The archive is hosted on the `release` branch of
 -- https://github.com/ProtossGenius/eclipse.jdt.ls and served via
 -- raw.githubusercontent.com. See dist/README.md on that branch for details
 -- on what changed and how it was built.
@@ -16,13 +16,13 @@
 -- match across registries, in order).
 
 local DIST_URL = "https://raw.githubusercontent.com/ProtossGenius/eclipse.jdt.ls/"
-  .. "dist/jdtls-nested-lambda-fix/dist/jdtls-nested-lambda-fix-linux-x64.tar.gz"
+  .. "release/dist/jdtls-nested-lambda-fix-linux-x64.tar.gz"
 
 ---@type RegistryPackageSpec
 return {
   schema = "registry+v1",
   name = "jdtls",
-  description = "Java language server (custom build: fixes nested-lambda completion).",
+  description = "Java language server (custom build: fixes nested-lambda completion, runs on JDK 21+).",
   homepage = "https://github.com/ProtossGenius/eclipse.jdt.ls",
   licenses = { "EPL-2.0" },
   languages = { "Java" },
