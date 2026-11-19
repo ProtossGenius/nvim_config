@@ -30,9 +30,32 @@ vim.lsp.handlers["textDocument/signatureHelp"] = function(err, result, ctx, conf
       end
       return
     end
-    vim.lsp.with(vim.lsp.handlers.signature_help, {
+    local bufnr = ctx and ctx.bufnr or vim.api.nvim_get_current_buf()
+    local client = ctx and ctx.client_id and vim.lsp.get_client_by_id(ctx.client_id)
+    local triggers = client
+      and vim.tbl_get(client.server_capabilities, 'signatureHelpProvider', 'triggerCharacters')
+    local ft = vim.bo[bufnr].filetype
+    local lines, hl = vim.lsp.util.convert_signature_help_to_markdown_lines(result, ft, triggers)
+    if not lines or vim.tbl_isempty(lines) then
+      if config and config.silent == false then
+        vim.notify('No signature help available')
+      end
+      return
+    end
+    local preview_opts = vim.tbl_extend('keep', config or {}, {
       border = 'rounded',
-    })(err, result, ctx, config)
+      focus_id = ctx and ctx.method or 'textDocument/signatureHelp',
+    })
+    local fbuf = vim.lsp.util.open_floating_preview(lines, 'markdown', preview_opts)
+    if hl and fbuf then
+      local sig_ns = vim.api.nvim_create_namespace('user_lsp_signature_help')
+      vim.api.nvim_buf_set_extmark(fbuf, sig_ns, hl[1], hl[2], {
+        end_row = hl[3],
+        end_col = hl[4],
+        hl_group = 'LspSignatureActiveParameter',
+        strict = false,
+      })
+    end
   end
 end
 
@@ -223,14 +246,14 @@ local function jump_to_class()
     local function jump(item)
       local location = item.location
       if location and location.uri and location.range then
-        vim.lsp.util.jump_to_location(location, encoding, true)
+        vim.lsp.util.show_document(location, encoding, { reuse_win = true, focus = true })
         return
       end
       if location and location.targetUri and location.targetRange then
-        vim.lsp.util.jump_to_location({
+        vim.lsp.util.show_document({
           uri = location.targetUri,
           range = location.targetRange,
-        }, encoding, true)
+        }, encoding, { reuse_win = true, focus = true })
       end
     end
 
@@ -474,7 +497,7 @@ function M.override_methods()
             elseif action_client.exec_cmd then
               action_client:exec_cmd(cmd, { bufnr = ctx.bufnr or bufnr })
             else
-              action_client.request('workspace/executeCommand', cmd, function(exec_err, exec_res)
+              action_client:request('workspace/executeCommand', cmd, function(exec_err, exec_res)
                 if exec_err then
                   vim.notify("Error executing override: " .. exec_err.message, vim.log.levels.WARN)
                 end
@@ -538,7 +561,11 @@ function M.on_attach(client, bufnr)
                   local word_len = word and #word or 1
                   local ns = vim.api.nvim_create_namespace("telescope_lsp_ref_highlight")
                   vim.api.nvim_buf_clear_namespace(p_bufnr, ns, 0, -1)
-                  vim.api.nvim_buf_add_highlight(p_bufnr, ns, "TelescopePreviewMatch", entry.lnum - 1, col - 1, col - 1 + word_len)
+                  vim.api.nvim_buf_set_extmark(p_bufnr, ns, entry.lnum - 1, col - 1, {
+                    end_col = col - 1 + word_len,
+                    hl_group = "TelescopePreviewMatch",
+                    strict = false,
+                  })
                 end
               end)
             end
@@ -557,9 +584,28 @@ function M.on_attach(client, bufnr)
   buf_map(bufnr, 'n', '<leader>lR', vim.lsp.buf.rename, 'LSP: Rename')
   buf_map(bufnr, 'n', '<leader>ls', builtin.lsp_document_symbols, 'LSP: Document symbols')
   buf_map(bufnr, 'n', '<leader>lS', builtin.lsp_dynamic_workspace_symbols, 'LSP: Workspace symbols')
+  local function jump_diagnostic(count)
+    if vim.diagnostic.jump then
+      vim.diagnostic.jump({
+        count = count,
+        on_jump = function(_, diag_bufnr)
+          vim.diagnostic.open_float({
+            bufnr = diag_bufnr,
+            scope = 'cursor',
+            focus = false,
+          })
+        end,
+      })
+    elseif count > 0 then
+      vim.diagnostic.goto_next()
+    else
+      vim.diagnostic.goto_prev()
+    end
+  end
+
   buf_map(bufnr, 'n', '<leader>le', vim.diagnostic.open_float, 'LSP: Line diagnostics')
-  buf_map(bufnr, 'n', '<leader>ln', vim.diagnostic.goto_next, 'LSP: Next diagnostic')
-  buf_map(bufnr, 'n', '<leader>lp', vim.diagnostic.goto_prev, 'LSP: Previous diagnostic')
+  buf_map(bufnr, 'n', '<leader>ln', function() jump_diagnostic(1) end, 'LSP: Next diagnostic')
+  buf_map(bufnr, 'n', '<leader>lp', function() jump_diagnostic(-1) end, 'LSP: Previous diagnostic')
 
   if supports_document_formatting(client) then
     buf_map(bufnr, 'n', '<leader>lf', function()

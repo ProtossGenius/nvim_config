@@ -700,18 +700,18 @@ function M.search(opts)
         local uri = item.uri
         local range = item.range
         if uri and range then
-          vim.lsp.util.jump_to_location({
+          vim.lsp.util.show_document({
             uri = uri,
             range = range,
-          }, encoding, true)
+          }, encoding, { reuse_win = true, focus = true })
         elseif uri then
-          vim.lsp.util.jump_to_location({
+          vim.lsp.util.show_document({
             uri = uri,
             range = {
               start = { line = 0, character = 0 },
               ['end'] = { line = 0, character = 0 },
             },
-          }, encoding, true)
+          }, encoding, { reuse_win = true, focus = true })
         end
       end)
 

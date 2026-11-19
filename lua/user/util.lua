@@ -6,7 +6,7 @@ local project = require('user.project')
 
 local function supports_range_format(bufnr)
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
-    if client.supports_method('textDocument/rangeFormatting') then
+    if client:supports_method('textDocument/rangeFormatting') then
       return true
     end
   end
@@ -125,15 +125,19 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 
     -- Handle Go imports via LSP
     if vim.bo.filetype == "go" then
-      local params = vim.lsp.util.make_range_params()
+      local clients = vim.lsp.get_clients({ bufnr = 0 })
+      local default_enc = (clients[1] and clients[1].offset_encoding) or "utf-16"
+      local params = vim.lsp.util.make_range_params(0, default_enc)
       params.context = { only = { "source.organizeImports" } }
       local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 1000)
       for cid, res in pairs(result or {}) do
+        local client = vim.lsp.get_client_by_id(cid)
+        local enc = (client and client.offset_encoding) or default_enc
         for _, r in pairs(res.result or {}) do
           if r.edit then
-            vim.lsp.util.apply_workspace_edit(r.edit, "utf-16")
-          else
-            vim.lsp.buf.execute_command(r.command)
+            vim.lsp.util.apply_workspace_edit(r.edit, enc)
+          elseif r.command and client then
+            client:exec_cmd(r.command, { bufnr = 0 })
           end
         end
       end

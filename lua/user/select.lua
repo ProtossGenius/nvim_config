@@ -15,10 +15,10 @@ function M.select(items, opts, on_choice)
 
   -- Create a scratch buffer
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
-  vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-  vim.api.nvim_buf_set_option(buf, "swapfile", false)
-  vim.api.nvim_buf_set_option(buf, "modifiable", true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].swapfile = false
+  vim.bo[buf].modifiable = true
 
   local status_line = " Input: "
   local first_item_line = 2
@@ -28,8 +28,8 @@ function M.select(items, opts, on_choice)
   end
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(buf, "modifiable", false)
-  vim.api.nvim_buf_set_option(buf, "readonly", true)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].readonly = true
 
   -- Calculate dimensions
   local max_line_len = 0
@@ -58,8 +58,8 @@ function M.select(items, opts, on_choice)
   }
 
   local win = vim.api.nvim_open_win(buf, true, win_opts)
-  vim.api.nvim_win_set_option(win, "cursorline", true)
-  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.wo[win].cursorline = true
+  vim.wo[win].wrap = false
 
   local typed_number = ""
   local closed = false
@@ -103,20 +103,28 @@ function M.select(items, opts, on_choice)
     end
 
     local text = " Input: " .. typed_number
-    local was_readonly = vim.api.nvim_buf_get_option(buf, "readonly")
+    local was_readonly = vim.bo[buf].readonly
 
-    vim.api.nvim_buf_set_option(buf, "modifiable", true)
-    vim.api.nvim_buf_set_option(buf, "readonly", false)
+    vim.bo[buf].modifiable = true
+    vim.bo[buf].readonly = false
     vim.api.nvim_buf_set_lines(buf, 0, 1, false, { text })
-    vim.api.nvim_buf_set_option(buf, "modifiable", false)
-    vim.api.nvim_buf_set_option(buf, "readonly", was_readonly)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = was_readonly
 
     local label_width = #(" Input: ")
 
     vim.api.nvim_buf_clear_namespace(buf, ns, 0, 1)
-    vim.api.nvim_buf_add_highlight(buf, ns, "Title", 0, 0, #text)
+    vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, {
+      end_col = #text,
+      hl_group = "Title",
+      strict = false,
+    })
     if #typed_number > 0 then
-      vim.api.nvim_buf_add_highlight(buf, ns, status_hl, 0, label_width, label_width + #typed_number)
+      vim.api.nvim_buf_set_extmark(buf, ns, 0, label_width, {
+        end_col = label_width + #typed_number,
+        hl_group = status_hl,
+        strict = false,
+      })
     end
   end
 
@@ -200,10 +208,10 @@ function M.select_many(items, prompt, label_f, opts, on_choice)
 
   -- Create a scratch buffer
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
-  vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-  vim.api.nvim_buf_set_option(buf, "swapfile", false)
-  vim.api.nvim_buf_set_option(buf, "modifiable", true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].swapfile = false
+  vim.bo[buf].modifiable = true
 
   local status_line = " Input: "
   local first_item_line = 2
@@ -237,8 +245,8 @@ function M.select_many(items, prompt, label_f, opts, on_choice)
   }
 
   local win = vim.api.nvim_open_win(buf, true, win_opts)
-  vim.api.nvim_win_set_option(win, "cursorline", true)
-  vim.api.nvim_win_set_option(win, "wrap", false)
+  vim.wo[win].cursorline = true
+  vim.wo[win].wrap = false
 
   local typed_number = ""
   local closed = false
@@ -287,12 +295,12 @@ function M.select_many(items, prompt, label_f, opts, on_choice)
       table.insert(lines, string.format(" %d. %s %s", i, check, label_f(item)))
     end
 
-    local was_readonly = vim.api.nvim_buf_get_option(buf, "readonly")
-    vim.api.nvim_buf_set_option(buf, "modifiable", true)
-    vim.api.nvim_buf_set_option(buf, "readonly", false)
+    local was_readonly = vim.bo[buf].readonly
+    vim.bo[buf].modifiable = true
+    vim.bo[buf].readonly = false
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.api.nvim_buf_set_option(buf, "modifiable", false)
-    vim.api.nvim_buf_set_option(buf, "readonly", was_readonly)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = was_readonly
 
     if vim.api.nvim_win_is_valid(win) then
       local line = vim.api.nvim_win_get_cursor(win)[1]
@@ -304,15 +312,27 @@ function M.select_many(items, prompt, label_f, opts, on_choice)
     local label_width = #(" Input: ")
 
     vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-    vim.api.nvim_buf_add_highlight(buf, ns, "Title", 0, 0, #text)
+    vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, {
+      end_col = #text,
+      hl_group = "Title",
+      strict = false,
+    })
     if #typed_number > 0 then
-      vim.api.nvim_buf_add_highlight(buf, ns, status_hl, 0, label_width, label_width + #typed_number)
+      vim.api.nvim_buf_set_extmark(buf, ns, 0, label_width, {
+        end_col = label_width + #typed_number,
+        hl_group = status_hl,
+        strict = false,
+      })
     end
 
     for i = 1, #items do
       local line_idx = i
       if selected_indices[i] then
-        vim.api.nvim_buf_add_highlight(buf, ns, ok_hl, line_idx, 0, -1)
+        vim.api.nvim_buf_set_extmark(buf, ns, line_idx, 0, {
+          end_col = #(lines[line_idx + 1] or ""),
+          hl_group = ok_hl,
+          strict = false,
+        })
       end
     end
   end

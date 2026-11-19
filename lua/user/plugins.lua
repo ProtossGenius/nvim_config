@@ -87,7 +87,7 @@ return {
   -- Fuzzy Finder
   {
     'nvim-telescope/telescope.nvim',
-    tag = '0.1.5',
+    branch = 'master',
     dependencies = {
       'nvim-lua/plenary.nvim',
       'ahmedkhalf/project.nvim',
@@ -348,40 +348,84 @@ return {
         end
       end)
 
-      require('mason-lspconfig').setup({
-        ensure_installed = {
-          'clangd',
-          'ts_ls',
-          'gopls',
-          'jdtls',
-          'rust_analyzer',
-          'lua_ls',
-        },
-        handlers = {
-          lsp.default_setup,
-          jdtls = function()
-            -- Do nothing. JDTLS is managed by nvim-jdtls in ftplugin/java.lua
+      if vim.lsp.config then
+        vim.lsp.config('*', {
+          capabilities = capabilities,
+        })
+
+        vim.lsp.config('clangd', {
+          capabilities = capabilities,
+          cmd = {
+            'clangd',
+            '--background-index',
+            '--clang-tidy',
+            '--header-insertion=never',
+          },
+          init_options = {
+            fallbackFlags = { '-Wall', '-Wextra' },
+          },
+        })
+
+        local lua_ls_cfg = user_lsp.lua_ls_config(capabilities)
+        vim.lsp.config('lua_ls', {
+          capabilities = lua_ls_cfg.capabilities,
+          settings = lua_ls_cfg.settings,
+          before_init = function(_, config)
+            if config.root_dir then
+              require('user.luabind').setup_lua_ls_workspace(config, config.root_dir)
+            end
           end,
-          clangd = function()
-            require('lspconfig').clangd.setup({
-              capabilities = capabilities,
-              cmd = {
-                'clangd',
-                '--background-index',
-                '--clang-tidy',
-                '--header-insertion=never',
-              },
-              init_options = {
-                fallbackFlags = { '-Wall', '-Wextra' },
-              },
-            })
-          end,
-          lua_ls = function()
-            local user_lsp = require('user.lsp')
-            require('lspconfig').lua_ls.setup(user_lsp.lua_ls_config(capabilities))
-          end,
-        },
-      })
+        })
+
+        require('mason-lspconfig').setup({
+          ensure_installed = {
+            'clangd',
+            'ts_ls',
+            'gopls',
+            'jdtls',
+            'rust_analyzer',
+            'lua_ls',
+          },
+          automatic_enable = {
+            exclude = { 'jdtls' },
+          },
+        })
+      else
+        require('mason-lspconfig').setup({
+          ensure_installed = {
+            'clangd',
+            'ts_ls',
+            'gopls',
+            'jdtls',
+            'rust_analyzer',
+            'lua_ls',
+          },
+          handlers = {
+            lsp.default_setup,
+            jdtls = function()
+              -- Do nothing. JDTLS is managed by nvim-jdtls in ftplugin/java.lua
+            end,
+            clangd = function()
+              require('lspconfig').clangd.setup({
+                capabilities = capabilities,
+                cmd = {
+                  'clangd',
+                  '--background-index',
+                  '--clang-tidy',
+                  '--header-insertion=never',
+                },
+                init_options = {
+                  fallbackFlags = { '-Wall', '-Wextra' },
+                },
+              })
+            end,
+            lua_ls = function()
+              local user_lsp = require('user.lsp')
+              require('lspconfig').lua_ls.setup(user_lsp.lua_ls_config(capabilities))
+            end,
+          },
+        })
+      end
 
       -- Explicitly prevent native Neovim 0.11+ LSP autostart for jdtls
       if vim.lsp.enable then

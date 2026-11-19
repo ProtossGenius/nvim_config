@@ -74,11 +74,38 @@ keymap('t', '<M-j>', '<C-\\><C-n><C-w>j', { desc = 'Move to lower window' })
 keymap('t', '<M-k>', '<C-\\><C-n><C-w>k', { desc = 'Move to upper window' })
 
 -- Diagnostics (replaces ALE bindings)
-keymap({'n', 'i'}, '<M-n>', vim.diagnostic.goto_next, { desc = 'Next diagnostic' })
-keymap({'n', 'i'}, '<M-p>', vim.diagnostic.goto_prev, { desc = 'Previous diagnostic' })
+local function jump_diagnostic(count)
+  if vim.diagnostic.jump then
+    vim.diagnostic.jump({
+      count = count,
+      on_jump = function(_, bufnr)
+        vim.diagnostic.open_float({
+          bufnr = bufnr,
+          scope = 'cursor',
+          focus = false,
+        })
+      end,
+    })
+  elseif count > 0 then
+    vim.diagnostic.goto_next()
+  else
+    vim.diagnostic.goto_prev()
+  end
+end
+
+local function next_diagnostic()
+  jump_diagnostic(1)
+end
+
+local function prev_diagnostic()
+  jump_diagnostic(-1)
+end
+
+keymap({'n', 'i'}, '<M-n>', next_diagnostic, { desc = 'Next diagnostic' })
+keymap({'n', 'i'}, '<M-p>', prev_diagnostic, { desc = 'Previous diagnostic' })
 keymap('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic error' })
-leader_map('n', '<leader>xn', vim.diagnostic.goto_next, 'Next diagnostic')
-leader_map('n', '<leader>xp', vim.diagnostic.goto_prev, 'Previous diagnostic')
+leader_map('n', '<leader>xn', next_diagnostic, 'Next diagnostic')
+leader_map('n', '<leader>xp', prev_diagnostic, 'Previous diagnostic')
 leader_map('n', '<leader>xe', vim.diagnostic.open_float, 'Show diagnostic error')
 
 -- Enter diagnostic float window (press again or use <leader>xf to focus)
@@ -155,7 +182,7 @@ local function toggle_terminal()
 
   -- Find all terminal buffers and check for visible terminals
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_option(bufnr, 'buftype') == 'terminal' then
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == 'terminal' then
       table.insert(terminal_buffers, bufnr)
       -- Check if this terminal buffer is currently visible in any window
       for _, winid in ipairs(vim.api.nvim_list_wins()) do
@@ -203,7 +230,7 @@ local function toggle_terminal()
       -- Create a new terminal in target_dir
       local buf = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_open_win(buf, true, win_opts)
-      vim.fn.termopen(vim.o.shell, { cwd = target_dir })
+      vim.fn.jobstart(vim.o.shell, { term = true, cwd = target_dir })
       vim.api.nvim_buf_set_var(buf, 'terminal_dir', target_dir)
       vim.cmd('startinsert!') -- Enter insert mode automatically
     end
@@ -248,7 +275,7 @@ end
 local function term_exec(cmd)
   vim.cmd('wa')
   vim.cmd('enew')
-  vim.fn.termopen(cmd, { cwd = term_exec_cwd() })
+  vim.fn.jobstart(cmd, { term = true, cwd = term_exec_cwd() })
   vim.cmd('startinsert')
 end
 keymap('v', '<C-c>', 'y')
@@ -513,7 +540,7 @@ local function dirvish_run_command()
   vim.cmd('split')
   local new_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_current_buf(new_buf)
-  vim.fn.termopen(final_cmd, { cwd = dir })
+  vim.fn.jobstart(final_cmd, { term = true, cwd = dir })
   vim.cmd('startinsert')
 end
 

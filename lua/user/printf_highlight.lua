@@ -145,16 +145,12 @@ local function pos_to_offset(text, start_row, start_col, target_row, target_col)
 end
 
 local function highlight_range(bufnr, s_row, s_col, e_row, e_col, hl_group)
-  if s_row == e_row then
-    vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, s_row, s_col, e_col)
-    return
-  end
-
-  vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, s_row, s_col, -1)
-  for row = s_row + 1, e_row - 1 do
-    vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, row, 0, -1)
-  end
-  vim.api.nvim_buf_add_highlight(bufnr, ns_id, hl_group, e_row, 0, e_col)
+  vim.api.nvim_buf_set_extmark(bufnr, ns_id, s_row, s_col, {
+    end_row = e_row,
+    end_col = e_col,
+    hl_group = hl_group,
+    strict = false,
+  })
 end
 
 local function node_text(bufnr, start_row, start_col, end_row, end_col)
