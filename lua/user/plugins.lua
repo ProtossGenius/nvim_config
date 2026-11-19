@@ -96,7 +96,7 @@ return {
       local telescope = require('telescope')
       local builtin = require('telescope.builtin')
       local project = require('user.project')
-      local uv = vim.uv or vim.loop
+      local telescope_ignore = require('user.telescope_ignore')
 
       telescope.setup({
         defaults = {
@@ -107,62 +107,15 @@ return {
         }
       })
 
-      local function existing_ignore_files()
-        local files = {}
-        local candidates = {
-          vim.fs.joinpath(vim.fn.stdpath('config'), '.nvimignore'),
-          vim.fs.joinpath(vim.fn.getcwd(), '.nvimignore'),
-        }
-
-        for _, path in ipairs(candidates) do
-          local stat = uv.fs_stat(path)
-          if stat and stat.type == 'file' then
-            table.insert(files, path)
-          end
-        end
-
-        return files
-      end
-
-      local function find_all_files_command()
-        local command = {
-          'rg',
-          '--files',
-          '--hidden',
-          '--follow',
-          '--color',
-          'never',
-          '--no-ignore-vcs',
-          '--no-ignore-parent',
-          '--no-ignore-dot',
-          '--no-ignore-exclude',
-          '--glob',
-          '!.git',
-          '--glob',
-          '!.git/**',
-          '--glob',
-          '!target',
-          '--glob',
-          '!target/**',
-          '--glob',
-          '!*.class',
-        }
-
-        for _, ignore_file in ipairs(existing_ignore_files()) do
-          vim.list_extend(command, { '--ignore-file', ignore_file })
-        end
-
-        return command
-      end
-
       local function get_search_cwd()
         return _G.initial_cwd or vim.fn.getcwd()
       end
 
       local find_all_files = function()
+        local cwd = get_search_cwd()
         builtin.find_files({
-          find_command = find_all_files_command(),
-          cwd = get_search_cwd(),
+          find_command = telescope_ignore.build_find_files_command({ cwd = cwd }),
+          cwd = cwd,
         })
       end
 
@@ -190,12 +143,12 @@ return {
       })
       telescope.load_extension('projects')
 
-      vim.keymap.set('n', '<c-p>', find_all_files, { desc = 'Find files (including ignored)' })
+      vim.keymap.set('n', '<c-p>', find_all_files, { desc = 'Find files (.gitignore + .nvimignore)' })
       vim.keymap.set('n', '<A-f>', live_grep, { desc = 'Live Grep' })
       vim.keymap.set('n', '<A-r>', builtin.buffers, { desc = 'Find buffers' })
       vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
       vim.keymap.set('n', '<leader>ff', git_files, { desc = 'Find git files' })
-      vim.keymap.set('n', '<leader>fa', find_all_files, { desc = 'Find files (including ignored)' })
+      vim.keymap.set('n', '<leader>fa', find_all_files, { desc = 'Find files (.gitignore + .nvimignore)' })
     end,
   },
 

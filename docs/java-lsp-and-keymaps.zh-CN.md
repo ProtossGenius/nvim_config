@@ -134,7 +134,7 @@
 
 | Leader | 作用 | 原快捷键 |
 | :--- | :--- | :--- |
-| `SPC f a` | 查找所有文件（含隐藏 / gitignored，但额外遵守 `.nvimignore`） | `<C-p>` |
+| `SPC f a` | 查找文件（默认遵守 `.gitignore`；有 `.nvimignore` 时叠加生效，写 `# no-vcs` 或 `# 不使用vcs` 可禁用 VCS 忽略规则） | `<C-p>` |
 | `SPC f b` | 查找 buffer | `<A-r>` |
 | `SPC f g` | 全局 grep | `<A-f>` |
 | `SPC f r` | 最近文件 | `<C-n>` |

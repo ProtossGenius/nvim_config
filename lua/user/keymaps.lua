@@ -127,14 +127,12 @@ keymap('n', '<leader>p', '<cmd>Telescope projects<cr>', { desc = 'Find projects'
 keymap('n', '<leader>ds', '<cmd>Telescope lsp_document_symbols<cr>', { desc = 'Document symbols' })
 keymap('n', '<leader>ts', '<cmd>Telescope tags<cr>', { desc = 'Find tags' })
 leader_map('n', '<leader>fa', function()
+  local cwd = _G.initial_cwd or vim.fn.getcwd()
   require('telescope.builtin').find_files({
-    cwd = _G.initial_cwd or vim.fn.getcwd(),
-    hidden = true,
-    no_ignore = true,
-    no_ignore_parent = true,
-    follow = true,
+    find_command = require('user.telescope_ignore').build_find_files_command({ cwd = cwd }),
+    cwd = cwd,
   })
-end, 'Find files (including ignored)')
+end, 'Find files (.gitignore + .nvimignore)')
 leader_map('n', '<leader>fb', '<cmd>Telescope buffers<cr>', 'Find buffers')
 leader_map('n', '<leader>fg', function()
   require('telescope.builtin').live_grep({

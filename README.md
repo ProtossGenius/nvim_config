@@ -60,6 +60,9 @@
 ### 3. Telescope 搜索文件排除二进制 class
 - **快捷键**：`<C-p>`
 - **优化**：在 Telescope 搜索文件的参数中，显式加入了排除 glob (`!target`, `!target/**`, `!*.class`)。这可确保在 LSP 编译项目并生成 `.class` 字节码文件到 `target` 目录后，搜索列表中不会被大量编译产生的垃圾文件所充斥。
+- **忽略规则（`.gitignore` + `.nvimignore`）**：
+  - 不存在 `.nvimignore` 时，默认遵守 `.gitignore` 等 VCS 忽略规则；
+  - 存在 `.nvimignore` 时，默认同时应用 VCS 忽略规则与 `.nvimignore`；若 `.nvimignore` 中包含注释 `# no-vcs`（或 `# 不使用vcs`），则禁用 VCS 忽略规则，仅按 `.nvimignore` 与内置 glob 过滤。
 
 ### 4. Dirvish 列表页实用工具与快捷键
 使用 `-` 键进入目录列表（Dirvish 文件列表页）后，新增了以下几个高效率本地命令：
