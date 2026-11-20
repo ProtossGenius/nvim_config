@@ -81,6 +81,59 @@ local function assert_no_highlight(test_name, marks)
   end
 end
 
+local function exit_visual_mode()
+  if vim.api.nvim_get_mode().mode:find("[vV\22]") then
+    vim.cmd("normal! \27")
+  end
+end
+
+--- Move cursor (1-indexed row, 0-indexed col), call select_corresponding(), return selected text.
+local function select_at(row, col)
+  exit_visual_mode()
+  vim.api.nvim_win_set_cursor(0, { row, col })
+  local ok = sql_hl.select_corresponding()
+  if not ok then
+    exit_visual_mode()
+    return nil
+  end
+
+  local vpos = vim.fn.getpos("v")
+  local cur = vim.api.nvim_win_get_cursor(0)
+  local sr, sc = vpos[2] - 1, vpos[3] - 1
+  local er, ec = cur[1] - 1, cur[2]
+  if sr > er or (sr == er and sc > ec) then
+    sr, sc, er, ec = er, ec, sr, sc
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(0, sr, er + 1, false)
+  exit_visual_mode()
+  if #lines == 0 then return nil end
+  if #lines == 1 then
+    return string.sub(lines[1], sc + 1, ec + 1)
+  end
+
+  local parts = { string.sub(lines[1], sc + 1) }
+  for i = 2, #lines - 1 do
+    table.insert(parts, lines[i])
+  end
+  table.insert(parts, string.sub(lines[#lines], 1, ec + 1))
+  return table.concat(parts, "\n")
+end
+
+local function assert_select(test_name, row, col, expected_text)
+  local got = select_at(row, col)
+  if got == expected_text then
+    pass_count = pass_count + 1
+    table.insert(results, string.format("  PASS  %s", test_name))
+  else
+    fail_count = fail_count + 1
+    table.insert(results, string.format("  FAIL  %s  (expected %s, got %s)",
+      test_name,
+      expected_text and string.format("%q", expected_text) or "nil",
+      got and string.format("%q", got) or "nil"))
+  end
+end
+
 -- ── Test 1: single-line INSERT ──────────────────────────────────────────
 -- insert into users (id, name, age) values (1, 'alice', 30);
   -- TS ranges: id=[19,21] name=[23,27] age=[29,32] | 1=[42,43] 'alice'=[45,52] 30=[54,56]
@@ -248,6 +301,222 @@ do
     pass_count = pass_count + 1
     table.insert(results, "  PASS  10 consecutive ping-pong jumps back and forth between 'name' and ''hello''")
   end
+  exit_visual_mode()
+end
+
+-- ── Test 6: Cursor on space after comma (', 1' bug reproduction) ────────
+print("--- Test 6: Cursor on space after comma ---")
+
+do
+  local line = "insert into orders (order_id, user_id, amount, status) values (100, 1, 99.99, 'pending');"
+  open_sql_buf({ line })
+
+  assert_highlight("orders: cursor on space in ', 1' -> highlight 'user_id'",
+    highlight_at(1, 67), "user_id")
+  assert_select("orders: select on space in ', 1' -> select 'user_id'",
+    1, 67, "user_id")
+
+  assert_highlight("orders: cursor on space in ', 99.99' -> highlight 'amount'",
+    highlight_at(1, 70), "amount")
+  assert_select("orders: select on space in ', 99.99' -> select 'amount'",
+    1, 70, "amount")
+
+  assert_highlight("orders: cursor on space in ', user_id' -> highlight '1'",
+    highlight_at(1, 29), "1")
+  assert_select("orders: select on space in ', user_id' -> select '1'",
+    1, 29, "1")
+
+  assert_highlight("orders: cursor on ')' -> highlight 'status'",
+    highlight_at(1, 87), "status")
+end
+
+do
+  local line = "insert into test (name, id) values ('hello', 1);"
+  open_sql_buf({ line })
+  local pos = assert(line:find(", 1", 1, true))
+
+  assert_highlight("simple: cursor on space in ', 1' -> highlight 'id'",
+    highlight_at(1, pos), "id")
+  assert_select("simple: select on space in ', 1' -> select 'id'",
+    1, pos, "id")
+end
+
+-- ── Test 7: Spaces before/after commas and multiple spaces ───────────────
+print("--- Test 7: Spaces before/after commas ---")
+
+do
+  local line = "insert into test ( name , id ) values ( 'hello' ,   1 );"
+  open_sql_buf({ line })
+
+  local open_pos = assert(line:find("( 'hello'", 1, true))
+  assert_highlight("space after '(' before 'hello' -> highlight 'name'",
+    highlight_at(1, open_pos), "name")
+
+  local comma_block = assert(line:find(" ,   1", 1, true))
+  assert_highlight("space after 'hello' before ',' -> highlight 'name'",
+    highlight_at(1, comma_block - 1), "name")
+  assert_highlight("on ',' after 'hello' -> highlight 'name'",
+    highlight_at(1, comma_block), "name")
+  assert_highlight("first space after ',' before '1' -> highlight 'id'",
+    highlight_at(1, comma_block + 1), "id")
+  assert_highlight("last space after ',' before '1' -> highlight 'id'",
+    highlight_at(1, comma_block + 3), "id")
+
+  local close_block = assert(line:find("1 );", 1, true))
+  assert_highlight("space after '1' before ')' -> highlight 'id'",
+    highlight_at(1, close_block), "id")
+end
+
+-- ── Test 8: Multiline indentation and trailing space after comma ─────────
+print("--- Test 8: Multiline indentation and trailing space ---")
+
+do
+  local lines = {
+    "insert into products (",
+    "  sku,",
+    "  title,",
+    "  price",
+    ") values (",
+    "  'A001', ",
+    "  'Widget',",
+    "  19.99",
+    ");",
+  }
+  open_sql_buf(lines)
+
+  assert_highlight("multiline: leading space before 'A001' -> highlight 'sku'",
+    highlight_at(6, 0), "sku")
+  assert_highlight("multiline: trailing space after comma on row 6 -> highlight 'title'",
+    highlight_at(6, #lines[6] - 1), "title")
+  assert_highlight("multiline: leading space before 'Widget' -> highlight 'title'",
+    highlight_at(7, 0), "title")
+  assert_highlight("multiline: leading space before '19.99' -> highlight 'price'",
+    highlight_at(8, 0), "price")
+  assert_highlight("multiline: cursor on ')' -> highlight 'price'",
+    highlight_at(9, 0), "price")
+end
+
+-- ── Test 9: Nested expressions containing commas ─────────────────────────
+print("--- Test 9: Nested expressions containing commas ---")
+
+do
+  local line = "insert into test (name, id, age) values (concat('a', 'b'), coalesce(null, 1), 30);"
+  open_sql_buf({ line })
+
+  local b_pos = assert(line:find("'b'", 1, true))
+  assert_highlight("nested: cursor on 'b' in concat -> highlight 'name'",
+    highlight_at(1, b_pos), "name")
+
+  local coal_comma_sp = assert(line:find(", coalesce", 1, true))
+  assert_highlight("nested: cursor on space before coalesce -> highlight 'id'",
+    highlight_at(1, coal_comma_sp), "id")
+
+  local one_pos = assert(line:find(", 1)", 1, true)) + 1
+  assert_highlight("nested: cursor on '1' in coalesce -> highlight 'id'",
+    highlight_at(1, one_pos), "id")
+
+  local age_comma_sp = assert(line:find(", 30", 1, true))
+  assert_highlight("nested: cursor on space in ', 30' -> highlight 'age'",
+    highlight_at(1, age_comma_sp), "age")
+end
+
+-- ── Test 10: Comments inside SQL lists ───────────────────────────────────
+print("--- Test 10: Comments inside SQL lists ---")
+
+do
+  local line = "insert into test (name, id) values ('hello', /* comment */ 1);"
+  open_sql_buf({ line })
+
+  local one_pos = assert(line:find("1);", 1, true)) - 1
+  assert_highlight("comments: cursor on '1' -> highlight 'id'",
+    highlight_at(1, one_pos), "id")
+
+  local id_pos = assert(line:find("id)", 1, true)) - 1
+  assert_highlight("comments: cursor on 'id' -> highlight '1'",
+    highlight_at(1, id_pos), "1")
+
+  local sp_pos = assert(line:find(", /*", 1, true))
+  assert_highlight("comments: cursor on space right after ',' -> highlight 'id'",
+    highlight_at(1, sp_pos), "id")
+end
+
+-- ── Test 11: Incomplete / trailing comma and empty middle slot ───────────
+print("--- Test 11: Incomplete trailing comma and empty middle slot ---")
+
+do
+  local line = "insert into test (name, id) values ('hello', );"
+  open_sql_buf({ line })
+  local sp_pos = assert(line:find(", )", 1, true))
+  assert_highlight("trailing comma: cursor on space after ',' -> highlight 'id'",
+    highlight_at(1, sp_pos), "id")
+end
+
+do
+  local line = "insert into test (name, id, age) values ('hello', , 30);"
+  open_sql_buf({ line })
+
+  local mid_sp_pos = assert(line:find(", , 30", 1, true))
+  assert_highlight("empty middle slot: cursor on space between commas -> highlight 'id'",
+    highlight_at(1, mid_sp_pos), "id")
+
+  local thirty_pos = assert(line:find("30);", 1, true)) - 1
+  assert_highlight("empty middle slot: cursor on '30' -> highlight 'age'",
+    highlight_at(1, thirty_pos), "age")
+
+  local age_pos = assert(line:find("age)", 1, true)) - 1
+  assert_highlight("empty middle slot: cursor on 'age' -> highlight '30'",
+    highlight_at(1, age_pos), "30")
+
+  local id_pos = assert(line:find("id,", 1, true)) - 1
+  assert_no_highlight("empty middle slot: cursor on 'id' -> no highlight",
+    highlight_at(1, id_pos))
+end
+
+-- ── Test 12: UTF-8 multi-byte string before ', 1' ────────────────────────
+print("--- Test 12: UTF-8 multi-byte string ---")
+
+do
+  local line = "insert into test (name, id) values ('你好', 1);"
+  open_sql_buf({ line })
+  local pos = assert(line:find(", 1", 1, true))
+
+  assert_highlight("utf8: cursor on space in ', 1' -> highlight 'id'",
+    highlight_at(1, pos), "id")
+  assert_select("utf8: select on space in ', 1' -> select 'id'",
+    1, pos, "id")
+end
+
+-- ── Test 13: Multi-row INSERT and no-column-list INSERT ──────────────────
+print("--- Test 13: Multi-row and no-column-list INSERT ---")
+
+do
+  local line = "insert into test (name, id) values ('a', 1), ('b', 2);"
+  open_sql_buf({ line })
+
+  local b_pos = assert(line:find("'b'", 1, true)) - 1
+  assert_highlight("multi-row: cursor on 'b' -> highlight 'name'",
+    highlight_at(1, b_pos), "name")
+
+  local sp2_pos = assert(line:find(", 2", 1, true))
+  assert_highlight("multi-row: cursor on space in ', 2' -> highlight 'id'",
+    highlight_at(1, sp2_pos), "id")
+
+  local name_pos = assert(line:find("name,", 1, true)) - 1
+  assert_highlight("multi-row: cursor on 'name' -> highlight 'a'",
+    highlight_at(1, name_pos), "'a'")
+end
+
+do
+  local line = "insert into test values ('a', 1), ('b', 2);"
+  open_sql_buf({ line })
+
+  local a_pos = assert(line:find("'a'", 1, true)) - 1
+  assert_no_highlight("no-column-list: cursor on 'a' -> no highlight",
+    highlight_at(1, a_pos))
+
+  local b_pos = assert(line:find("'b'", 1, true)) - 1
+  assert_no_highlight("no-column-list: cursor on 'b' -> no highlight",
+    highlight_at(1, b_pos))
 end
 
 -- ── Summary ─────────────────────────────────────────────────────────────

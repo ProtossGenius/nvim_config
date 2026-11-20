@@ -3,6 +3,66 @@ local M = {}
 local ns = vim.api.nvim_create_namespace("sql_insert_highlight")
 local hl_group = "SqlInsertMatch"
 
+local IGNORED_LIST_CHILD_TYPES = {
+  comment = true,
+  marginalia = true,
+  ERROR = true,
+}
+
+local function is_pos_at_or_after(row, col, ref_row, ref_col)
+  return row > ref_row or (row == ref_row and col >= ref_col)
+end
+
+local function collect_commas_from_node(node, commas)
+  for i = 0, node:child_count() - 1 do
+    local child = node:child(i)
+    local ctype = child:type()
+    if ctype == ',' then
+      local _, _, er, ec = child:range()
+      table.insert(commas, { end_row = er, end_col = ec })
+    elseif ctype == 'ERROR' then
+      collect_commas_from_node(child, commas)
+    end
+  end
+end
+
+local function collect_top_level_commas(list_node)
+  local commas = {}
+  collect_commas_from_node(list_node, commas)
+  return commas
+end
+
+local function get_list_slot_index(list_node, crow, ccol)
+  local commas = collect_top_level_commas(list_node)
+  local slot = 0
+  for _, comma in ipairs(commas) do
+    if is_pos_at_or_after(crow, ccol, comma.end_row, comma.end_col) then
+      slot = slot + 1
+    end
+  end
+  return slot
+end
+
+local function get_list_slots(list_node)
+  local slots = {}
+  local slot = 0
+  for i = 0, list_node:child_count() - 1 do
+    local child = list_node:child(i)
+    local ctype = child:type()
+    if ctype == ',' then
+      slot = slot + 1
+    elseif ctype == 'ERROR' then
+      slot = slot + #collect_top_level_commas(child)
+    elseif child:named() and not IGNORED_LIST_CHILD_TYPES[ctype] and not child:missing() then
+      local sr, sc, er, ec = child:range()
+      if not (sr == er and sc == ec) then
+        slots[slot] = child
+      end
+    end
+  end
+  return slots
+end
+
 function M.get_corresponding_range(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
@@ -14,7 +74,6 @@ function M.get_corresponding_range(bufnr)
   if not node then return end
 
   -- Traverse up to find a list node that is a child of an insert node
-  local target_node = node
   local list_node = node
   while list_node do
     if list_node:type() == 'list' then
@@ -23,81 +82,62 @@ function M.get_corresponding_range(bufnr)
         break
       end
     end
-    target_node = list_node
     list_node = list_node:parent()
   end
 
   if not list_node then return end
   local insert_node = list_node:parent()
 
-  local lists = {}
+  local column_list
+  local value_lists = {}
+  local seen_values = false
   for i = 0, insert_node:named_child_count() - 1 do
-    if insert_node:named_child(i):type() == 'list' then
-      table.insert(lists, insert_node:named_child(i))
-    end
-  end
-
-  if #lists == 2 then
-    local current_list, other_list
-    if lists[1] == list_node then
-      current_list = lists[1]
-      other_list = lists[2]
-    elseif lists[2] == list_node then
-      current_list = lists[2]
-      other_list = lists[1]
-    end
-
-    if current_list then
-      local index = -1
-      for i = 0, current_list:named_child_count() - 1 do
-        if current_list:named_child(i) == target_node then
-          index = i
-          break
-        end
-      end
-
-      if index == -1 then
-        local cursor = vim.api.nvim_win_get_cursor(0)
-        local crow = cursor[1] - 1
-        local ccol = cursor[2]
-
-        for i = 0, current_list:named_child_count() - 1 do
-          local child = current_list:named_child(i)
-          local sr, sc, er, ec = child:range()
-          if crow == sr and crow == er then
-            if ccol >= sc and ccol < ec then
-              index = i
-              break
-            end
-          elseif (crow > sr or (crow == sr and ccol >= sc))
-            and (crow < er or (crow == er and ccol < ec)) then
-            index = i
-            break
-          end
-        end
-
-        if index == -1 then
-          for i = current_list:named_child_count() - 1, 0, -1 do
-            local child = current_list:named_child(i)
-            local sr, sc = child:range()
-            if crow > sr or (crow == sr and ccol >= sc) then
-              index = i
-              break
-            end
-          end
-        end
-
-        if index == -1 and current_list:named_child_count() > 0 then
-          index = 0
-        end
-      end
-
-      if index >= 0 and index < other_list:named_child_count() then
-        local corresponding = other_list:named_child(index)
-        return corresponding:range()
+    local child = insert_node:named_child(i)
+    local ctype = child:type()
+    if ctype == 'keyword_values' then
+      seen_values = true
+    elseif ctype == 'list' then
+      if seen_values then
+        table.insert(value_lists, child)
+      elseif not column_list then
+        column_list = child
       end
     end
   end
+
+  if not column_list or #value_lists == 0 then
+    return nil
+  end
+
+  local current_list, other_list
+  if list_node == column_list then
+    current_list = column_list
+    other_list = value_lists[1]
+  else
+    for _, value_list in ipairs(value_lists) do
+      if list_node == value_list then
+        current_list = value_list
+        other_list = column_list
+        break
+      end
+    end
+  end
+
+  if not current_list then
+    return nil
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local crow = cursor[1] - 1
+  local ccol = cursor[2]
+
+  local index = get_list_slot_index(current_list, crow, ccol)
+  local slots = get_list_slots(other_list)
+  local corresponding = slots[index]
+  if corresponding then
+    return corresponding:range()
+  end
+
   return nil
 end
 
@@ -132,7 +172,16 @@ function M.select_corresponding()
   local start_row = sr + 1
   local start_col = sc
   local end_row = er + 1
-  local end_col = math.max(sc, ec - 1)
+  local end_col
+  if sr == er then
+    end_col = math.max(sc, ec - 1)
+  elseif ec > 0 then
+    end_col = ec - 1
+  else
+    end_row = math.max(start_row, er)
+    local prev_line = vim.api.nvim_buf_get_lines(bufnr, end_row - 1, end_row, false)[1] or ""
+    end_col = math.max(0, #prev_line - 1)
+  end
 
   vim.api.nvim_win_set_cursor(0, { start_row, start_col })
   vim.cmd("normal! v")
