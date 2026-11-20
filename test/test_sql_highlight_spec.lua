@@ -519,6 +519,182 @@ do
     highlight_at(1, b_pos))
 end
 
+-- ── Test 14: Multi-row INSERT ping-pong memory ───────────────────────────
+print("--- Test 14: Multi-row INSERT ping-pong memory ---")
+
+do
+  local line = "insert into test (name, id) values ('a', 1), ('b', 2);"
+  local bufnr = open_sql_buf({ line })
+  local two_col = assert(line:find("2);", 1, true)) - 1
+  vim.api.nvim_win_set_cursor(0, { 1, two_col })
+
+  local steps_ok = true
+  local expected_cols = {
+    assert(line:find("id)", 1, true)) - 1,
+    two_col,
+    assert(line:find("id)", 1, true)) - 1,
+    two_col,
+  }
+  local expected_texts = { "id", "2", "id", "2" }
+
+  for step = 1, 4 do
+    local ok = sql_hl.select_corresponding()
+    if not ok then
+      steps_ok = false
+      fail_count = fail_count + 1
+      table.insert(results, string.format("  FAIL  multi-row ping-pong failed at step %d", step))
+      break
+    end
+    local vpos = vim.fn.getpos("v")
+    local cur = vim.api.nvim_win_get_cursor(0)
+    local sc = math.min(vpos[3] - 1, cur[2])
+    local ec = math.max(vpos[3] - 1, cur[2]) + 1
+    local txt = string.sub(vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1], sc + 1, ec)
+    if txt ~= expected_texts[step] or sc ~= expected_cols[step] then
+      steps_ok = false
+      fail_count = fail_count + 1
+      table.insert(results, string.format(
+        "  FAIL  multi-row ping-pong step %d expected (%q, col %d), got (%q, col %d)",
+        step, expected_texts[step], expected_cols[step], txt, sc))
+      break
+    end
+  end
+  exit_visual_mode()
+  if steps_ok then
+    pass_count = pass_count + 1
+    table.insert(results, "  PASS  multi-row ping-pong stays on row 2 (2 -> id -> 2 -> id -> 2)")
+  end
+end
+
+-- ── Test 15: INSERT ... SELECT ───────────────────────────────────────────
+print("--- Test 15: INSERT ... SELECT ---")
+
+do
+  local line = "insert into test (name, id) select u.name, u.id from users u;"
+  open_sql_buf({ line })
+
+  local uname_col = assert(line:find("u.name", 1, true)) - 1
+  local uid_sp_col = assert(line:find(", u.id", 1, true))
+  local id_col = assert(line:find("id)", 1, true)) - 1
+
+  assert_highlight("insert select: u.name -> name", highlight_at(1, uname_col), "name")
+  assert_highlight("insert select: space in ', u.id' -> id", highlight_at(1, uid_sp_col), "id")
+  assert_highlight("insert select: id -> u.id", highlight_at(1, id_col), "u.id")
+
+  vim.api.nvim_win_set_cursor(0, { 1, id_col })
+  local seq = {}
+  for _ = 1, 4 do
+    assert(sql_hl.select_corresponding())
+    local vpos = vim.fn.getpos("v")
+    local cur = vim.api.nvim_win_get_cursor(0)
+    local sc = math.min(vpos[3] - 1, cur[2])
+    local ec = math.max(vpos[3] - 1, cur[2]) + 1
+    table.insert(seq, string.sub(line, sc + 1, ec))
+  end
+  exit_visual_mode()
+  if vim.deep_equal(seq, { "u.id", "id", "u.id", "id" }) then
+    pass_count = pass_count + 1
+    table.insert(results, "  PASS  insert select ping-pong id <-> u.id")
+  else
+    fail_count = fail_count + 1
+    table.insert(results, "  FAIL  insert select ping-pong got " .. vim.inspect(seq))
+  end
+end
+
+-- ── Test 16: SQL syntax variations & multiline selection ─────────────────
+print("--- Test 16: SQL syntax variations & multiline selection ---")
+
+do
+  local line = "insert into test (name, id) values ('a, b', 1);"
+  open_sql_buf({ line })
+  local one_col = assert(line:find("1);", 1, true)) - 1
+  assert_highlight("string literal with comma: 1 -> id", highlight_at(1, one_col), "id")
+end
+
+do
+  local line = "INSERT INTO test(name,id)VALUES('hello',1);"
+  open_sql_buf({ line })
+  local one_col = assert(line:find("1);", 1, true)) - 1
+  assert_highlight("no spaces: 1 -> id", highlight_at(1, one_col), "id")
+end
+
+do
+  local line = "insert into test (name, id) values ('hello', case when a in (1, 2) then 1 else 2 end);"
+  open_sql_buf({ line })
+  local two_in_col = assert(line:find("2)", 1, true)) - 1
+  assert_highlight("CASE IN (1, 2) inside value -> id", highlight_at(1, two_in_col), "id")
+end
+
+do
+  local lines = {
+    "insert into test (name, id) values (",
+    "  'hello',",
+    "  concat('a',",
+    "    'b')",
+    ");",
+  }
+  open_sql_buf(lines)
+  local id_col = assert(lines[1]:find("id)", 1, true)) - 1
+  assert_select("multiline value end_col < start_col selects cleanly", 1, id_col, "concat('a',\n    'b')")
+
+  vim.api.nvim_win_set_cursor(0, { 1, id_col })
+  local seq = {}
+  for _ = 1, 3 do
+    assert(sql_hl.select_corresponding())
+    local vpos = vim.fn.getpos("v")
+    local cur = vim.api.nvim_win_get_cursor(0)
+    local sr, sc = vpos[2] - 1, vpos[3] - 1
+    local er, ec = cur[1] - 1, cur[2]
+    if sr > er or (sr == er and sc > ec) then
+      sr, sc, er, ec = er, ec, sr, sc
+    end
+    local sel_lines = vim.api.nvim_buf_get_lines(0, sr, er + 1, false)
+    if #sel_lines == 1 then
+      table.insert(seq, string.sub(sel_lines[1], sc + 1, ec + 1))
+    else
+      local parts = { string.sub(sel_lines[1], sc + 1) }
+      for i = 2, #sel_lines - 1 do table.insert(parts, sel_lines[i]) end
+      table.insert(parts, string.sub(sel_lines[#sel_lines], 1, ec + 1))
+      table.insert(seq, table.concat(parts, "\n"))
+    end
+  end
+  exit_visual_mode()
+  if vim.deep_equal(seq, { "concat('a',\n    'b')", "id", "concat('a',\n    'b')" }) then
+    pass_count = pass_count + 1
+    table.insert(results, "  PASS  multiline value end_col < start_col ping-pong")
+  else
+    fail_count = fail_count + 1
+    table.insert(results, "  FAIL  multiline value ping-pong got " .. vim.inspect(seq))
+  end
+end
+
+-- ── Test 17: Live edit without manual parse & Visual mode preserved ──────
+print("--- Test 17: Live edit & Visual mode preserved on no-match ---")
+
+do
+  local bufnr = open_sql_buf({ "insert into test (name) values ('hello');" })
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "insert into test (name, id) values ('hello', 1);" })
+  local sp_col = assert(vim.api.nvim_buf_get_lines(bufnr, 0, 1, false)[1]:find(", 1", 1, true))
+  assert_highlight("sql live edit without manual parse: space in ', 1' -> id", highlight_at(1, sp_col), "id")
+end
+
+do
+  local line = "select * from users;"
+  open_sql_buf({ line })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+  vim.cmd("normal! vll")
+  local ok = sql_hl.select_corresponding()
+  local mode = vim.api.nvim_get_mode().mode
+  exit_visual_mode()
+  if ok == false and mode == "v" then
+    pass_count = pass_count + 1
+    table.insert(results, "  PASS  visual mode preserved on no-match outside INSERT")
+  else
+    fail_count = fail_count + 1
+    table.insert(results, string.format("  FAIL  visual mode preserved on no-match (ok=%s, mode=%s)", tostring(ok), mode))
+  end
+end
+
 -- ── Summary ─────────────────────────────────────────────────────────────
 print("")
 for _, r in ipairs(results) do

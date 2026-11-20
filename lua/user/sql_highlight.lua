@@ -1,96 +1,34 @@
+local correspondence = require('user.correspondence')
+
 local M = {}
 
 local ns = vim.api.nvim_create_namespace("sql_insert_highlight")
 local hl_group = "SqlInsertMatch"
+local last_value_idx_by_buf = {}
 
-local IGNORED_LIST_CHILD_TYPES = {
-  comment = true,
-  marginalia = true,
-  ERROR = true,
-}
-
-local function is_pos_at_or_after(row, col, ref_row, ref_col)
-  return row > ref_row or (row == ref_row and col >= ref_col)
-end
-
-local function collect_commas_from_node(node, commas)
-  for i = 0, node:child_count() - 1 do
-    local child = node:child(i)
-    local ctype = child:type()
-    if ctype == ',' then
-      local _, _, er, ec = child:range()
-      table.insert(commas, { end_row = er, end_col = ec })
-    elseif ctype == 'ERROR' then
-      collect_commas_from_node(child, commas)
-    end
-  end
-end
-
-local function collect_top_level_commas(list_node)
-  local commas = {}
-  collect_commas_from_node(list_node, commas)
-  return commas
-end
-
-local function get_list_slot_index(list_node, crow, ccol)
-  local commas = collect_top_level_commas(list_node)
-  local slot = 0
-  for _, comma in ipairs(commas) do
-    if is_pos_at_or_after(crow, ccol, comma.end_row, comma.end_col) then
-      slot = slot + 1
-    end
-  end
-  return slot
-end
-
-local function get_list_slots(list_node)
-  local slots = {}
-  local slot = 0
-  for i = 0, list_node:child_count() - 1 do
-    local child = list_node:child(i)
-    local ctype = child:type()
-    if ctype == ',' then
-      slot = slot + 1
-    elseif ctype == 'ERROR' then
-      slot = slot + #collect_top_level_commas(child)
-    elseif child:named() and not IGNORED_LIST_CHILD_TYPES[ctype] and not child:missing() then
-      local sr, sc, er, ec = child:range()
-      if not (sr == er and sc == ec) then
-        slots[slot] = child
+local function find_insert_container(node)
+  local current = node
+  while current do
+    local ctype = current:type()
+    local parent = current:parent()
+    if ctype == 'list' and parent and parent:type() == 'insert' then
+      return current, parent
+    elseif ctype == 'select_expression' and parent and parent:type() == 'select' then
+      local grandparent = parent:parent()
+      if grandparent and grandparent:type() == 'insert' then
+        return current, grandparent
       end
     end
+    current = parent
   end
-  return slots
+  return nil, nil
 end
 
-function M.get_corresponding_range(bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-  local ok, parser = pcall(vim.treesitter.get_parser, bufnr)
-  if not ok or not parser then return end
-  parser:parse()
-
-  local node = vim.treesitter.get_node()
-  if not node then return end
-
-  -- Traverse up to find a list node that is a child of an insert node
-  local list_node = node
-  while list_node do
-    if list_node:type() == 'list' then
-      local parent = list_node:parent()
-      if parent and parent:type() == 'insert' then
-        break
-      end
-    end
-    list_node = list_node:parent()
-  end
-
-  if not list_node then return end
-  local insert_node = list_node:parent()
-
+local function collect_insert_containers(insert_node)
   local column_list
-  local value_lists = {}
+  local value_containers = {}
   local seen_values = false
+
   for i = 0, insert_node:named_child_count() - 1 do
     local child = insert_node:named_child(i)
     local ctype = child:type()
@@ -98,109 +36,162 @@ function M.get_corresponding_range(bufnr)
       seen_values = true
     elseif ctype == 'list' then
       if seen_values then
-        table.insert(value_lists, child)
+        table.insert(value_containers, child)
       elseif not column_list then
         column_list = child
+      end
+    elseif ctype == 'select' and column_list then
+      for j = 0, child:named_child_count() - 1 do
+        local sub = child:named_child(j)
+        if sub:type() == 'select_expression' then
+          table.insert(value_containers, sub)
+        end
       end
     end
   end
 
-  if not column_list or #value_lists == 0 then
+  return column_list, value_containers
+end
+
+local function node_range_key(node)
+  local sr, sc, er, ec = node:range()
+  return string.format("%d:%d:%d:%d", sr, sc, er, ec)
+end
+
+function M.clear_highlights(bufnr)
+  bufnr = (not bufnr or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  end
+end
+
+local function resolve_correspondence(bufnr)
+  bufnr = (not bufnr or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+
+  local node, crow, ccol = correspondence.get_node_at_cursor(bufnr)
+  if not node then
     return nil
   end
 
-  local current_list, other_list
-  if list_node == column_list then
-    current_list = column_list
-    other_list = value_lists[1]
+  local container_node, insert_node = find_insert_container(node)
+  if not container_node or not insert_node then
+    return nil
+  end
+
+  local column_list, value_containers = collect_insert_containers(insert_node)
+  if not column_list or #value_containers == 0 then
+    return nil
+  end
+
+  local insert_key = node_range_key(insert_node)
+  local current_container, other_container, from_value_idx
+
+  if container_node == column_list then
+    local target_idx = 1
+    local saved = last_value_idx_by_buf[bufnr]
+    if saved and saved.insert_key == insert_key and saved.index >= 1 and saved.index <= #value_containers then
+      target_idx = saved.index
+    end
+    current_container = column_list
+    other_container = value_containers[target_idx]
   else
-    for _, value_list in ipairs(value_lists) do
-      if list_node == value_list then
-        current_list = value_list
-        other_list = column_list
+    for idx, value_container in ipairs(value_containers) do
+      if container_node == value_container then
+        from_value_idx = idx
+        current_container = value_container
+        other_container = column_list
         break
       end
     end
   end
 
-  if not current_list then
+  if not current_container or not other_container then
     return nil
   end
 
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local crow = cursor[1] - 1
-  local ccol = cursor[2]
-
-  local index = get_list_slot_index(current_list, crow, ccol)
-  local slots = get_list_slots(other_list)
-  local corresponding = slots[index]
-  if corresponding then
-    return corresponding:range()
+  local index = correspondence.get_slot_index(current_container, crow, ccol)
+  local slots = correspondence.get_slot_ranges(other_container)
+  local target = slots[index]
+  if not target then
+    return nil
   end
 
-  return nil
+  return {
+    target = target,
+    insert_key = insert_key,
+    from_value_idx = from_value_idx,
+  }
 end
 
-function M.highlight_corresponding()
-  local bufnr = vim.api.nvim_get_current_buf()
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-
-  local sr, sc, er, ec = M.get_corresponding_range(bufnr)
-  if sr then
-    vim.api.nvim_buf_set_extmark(bufnr, ns, sr, sc, {
-      end_row = er,
-      end_col = ec,
-      hl_group = hl_group,
-      hl_mode = "combine",
-      priority = 300,
-    })
+function M.get_corresponding_range(bufnr)
+  local res = resolve_correspondence(bufnr)
+  if not res then
+    return nil
   end
+
+  local t = res.target
+  return t.start_row, t.start_col, t.end_row, t.end_col
+end
+
+function M.highlight_corresponding(bufnr)
+  bufnr = (not bufnr or bufnr == 0) and vim.api.nvim_get_current_buf() or bufnr
+  M.clear_highlights(bufnr)
+
+  local res = resolve_correspondence(bufnr)
+  if not res then
+    last_value_idx_by_buf[bufnr] = nil
+    return
+  end
+
+  local t = res.target
+  vim.api.nvim_buf_set_extmark(bufnr, ns, t.start_row, t.start_col, {
+    end_row = t.end_row,
+    end_col = t.end_col,
+    hl_group = hl_group,
+    hl_mode = "combine",
+    priority = 300,
+  })
 end
 
 function M.select_corresponding()
   local bufnr = vim.api.nvim_get_current_buf()
-  local mode = vim.api.nvim_get_mode().mode
-  if mode:find("[vV\22]") then
-    vim.cmd("normal! \27")
-  end
-
-  local sr, sc, er, ec = M.get_corresponding_range(bufnr)
-  if not sr then
+  local res = resolve_correspondence(bufnr)
+  if not res then
     return false
   end
 
-  local start_row = sr + 1
-  local start_col = sc
-  local end_row = er + 1
-  local end_col
-  if sr == er then
-    end_col = math.max(sc, ec - 1)
-  elseif ec > 0 then
-    end_col = ec - 1
-  else
-    end_row = math.max(start_row, er)
-    local prev_line = vim.api.nvim_buf_get_lines(bufnr, end_row - 1, end_row, false)[1] or ""
-    end_col = math.max(0, #prev_line - 1)
+  local t = res.target
+  local selected = correspondence.select_range(bufnr, t.start_row, t.start_col, t.end_row, t.end_col)
+  if selected then
+    if res.from_value_idx then
+      last_value_idx_by_buf[bufnr] = {
+        insert_key = res.insert_key,
+        index = res.from_value_idx,
+      }
+    else
+      last_value_idx_by_buf[bufnr] = nil
+    end
   end
 
-  vim.api.nvim_win_set_cursor(0, { start_row, start_col })
-  vim.cmd("normal! v")
-  vim.api.nvim_win_set_cursor(0, { end_row, end_col })
-  return true
+  return selected
 end
 
 function M.setup()
+  local group = vim.api.nvim_create_augroup("SqlInsertHighlight", { clear = true })
+
   -- Define a bold underline highlight that is always visible on any colorscheme
   vim.api.nvim_set_hl(0, hl_group, { underline = true, bold = true, bg = "#504945" })
 
   -- Re-apply after colorscheme changes
   vim.api.nvim_create_autocmd("ColorScheme", {
+    group = group,
     callback = function()
       vim.api.nvim_set_hl(0, hl_group, { underline = true, bold = true, bg = "#504945" })
     end,
   })
 
   vim.api.nvim_create_autocmd("FileType", {
+    group = group,
     pattern = "sql",
     callback = function(args)
       local bufnr = args.buf
@@ -208,10 +199,27 @@ function M.setup()
       if vim.b[bufnr]._sql_highlight_attached then return end
       vim.b[bufnr]._sql_highlight_attached = true
 
-      vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+      vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "TextChanged", "TextChangedI" }, {
+        group = group,
         buffer = bufnr,
         callback = function()
-          M.highlight_corresponding()
+          M.highlight_corresponding(bufnr)
+        end,
+      })
+
+      vim.api.nvim_create_autocmd("BufLeave", {
+        group = group,
+        buffer = bufnr,
+        callback = function()
+          M.clear_highlights(bufnr)
+        end,
+      })
+
+      vim.api.nvim_create_autocmd("BufWipeout", {
+        group = group,
+        buffer = bufnr,
+        callback = function()
+          last_value_idx_by_buf[bufnr] = nil
         end,
       })
 
